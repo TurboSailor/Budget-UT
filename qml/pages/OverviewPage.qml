@@ -99,7 +99,7 @@ Item {
                             MoneyLabel {
                                 minor: AppState.wallets.incomeMinor
                                 currency: AppState.wallets.system
-                                isIncome: true
+                                kind: 2
                                 colored: true
                                 font.pixelSize: Theme.fontSub
                             }
@@ -112,7 +112,7 @@ Item {
                             MoneyLabel {
                                 minor: AppState.wallets.expenseMinor
                                 currency: AppState.wallets.system
-                                isIncome: false
+                                kind: 0
                                 colored: true
                                 font.pixelSize: Theme.fontSub
                             }

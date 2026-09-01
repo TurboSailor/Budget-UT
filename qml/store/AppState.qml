@@ -58,7 +58,8 @@ QtObject {
         });
     }
 
-    // Lookup helpers
+    // ---- lookups ----
+
     function categoryById(id) {
         if (!id) return null;
         for (var i = 0; i < categories.length; i++) {
@@ -83,6 +84,13 @@ QtObject {
         return null;
     }
 
+    function rateOf(code) {
+        for (var i = 0; i < currencies.length; i++) {
+            if (currencies[i].code === code && currencies[i].rate > 0) return currencies[i].rate;
+        }
+        return 1.0;
+    }
+
     function currencySymbol(code) {
         if (!code) code = wallets.system || "USD";
         for (var i = 0; i < currencies.length; i++) {
@@ -100,26 +108,59 @@ QtObject {
         }
     }
 
-    // formatMoney returns formatted string e.g. "$1,234.56" or "-$15.00"
-    function formatMoney(minor, cur, showSign) {
-        if (minor === undefined || minor === null) minor = 0;
-        var sym = currencySymbol(cur);
-        var isNeg = minor < 0;
-        var abs = Math.abs(minor);
-        var major = (abs / 100).toFixed(2);
-        // add thousand separators
-        var parts = major.split(".");
-        parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-        var formatted = parts.join(".");
-        var sign = "";
-        if (isNeg) sign = "-";
-        else if (showSign && minor > 0) sign = "+";
-        // symbol placement: before for $, €, £, after for ₽
-        if (sym === "₽") return sign + formatted + " ₽";
-        return sign + sym + formatted;
+    // Symbols that read naturally before the number; everything else is suffixed.
+    function symbolIsPrefix(sym) {
+        return sym === "$" || sym === "€" || sym === "£" || sym === "¥"
+            || sym === "₹" || sym === "₩" || sym === "₪" || sym === "₫";
     }
 
-    // categoryColor resolves hex string to valid QML color
+    // ---- money formatting ----
+    // Manual digit grouping: the V4 engine mangles the regex lookahead trick,
+    // which is what produced the doubled separators.
+    function groupDigits(intStr) {
+        var out = "";
+        var n = 0;
+        for (var i = intStr.length - 1; i >= 0; i--) {
+            out = intStr.charAt(i) + out;
+            n++;
+            if (n % 3 === 0 && i > 0) out = "," + out;
+        }
+        return out;
+    }
+
+    // formatMoney renders an absolute-value-agnostic amount: a stored negative
+    // (an overdrawn balance) keeps its minus, nothing else gains a sign.
+    function formatMoney(minor, cur) {
+        if (minor === undefined || minor === null || isNaN(minor)) minor = 0;
+        var sym = currencySymbol(cur);
+        var neg = minor < 0;
+        var abs = Math.abs(minor);
+        var major = Math.floor(abs / 100);
+        var cents = abs % 100;
+        var body = groupDigits("" + major) + "." + (cents < 10 ? "0" + cents : "" + cents);
+        var sign = neg ? "-" : "";
+        return symbolIsPrefix(sym) ? (sign + sym + body) : (sign + body + " " + sym);
+    }
+
+    // formatSigned applies the transaction sign from `kind`, never from the
+    // stored number: the source data keeps every amount positive
+    // (kind 0 = expense, 1 = transfer, 2 = income).
+    function formatSigned(minor, cur, kind) {
+        var base = formatMoney(Math.abs(minor === undefined || minor === null ? 0 : minor), cur);
+        if (kind === 0) return "-" + base;
+        if (kind === 2) return "+" + base;
+        return base;
+    }
+
+    function colorForKind(kind) {
+        if (kind === 0) return Theme.expense;
+        if (kind === 2) return Theme.income;
+        if (kind === 1) return Theme.transfer;
+        return Theme.textPrimary;
+    }
+
+    // ---- category presentation ----
+
     function categoryColor(catId, fallback) {
         var c = categoryById(catId);
         if (c && c.color) {
@@ -130,30 +171,28 @@ QtObject {
         return fallback || Theme.primary;
     }
 
-    // categoryName returns label or fallback
     function categoryName(catId) {
         var c = categoryById(catId);
         return c ? c.name : "Uncategorized";
     }
 
-    // categoryIconGlyph returns single-char / emoji / short text representation
-    // since Ubuntu Touch has no SF Symbols.
     function categoryGlyph(iconName, name) {
         if (!iconName && !name) return "•";
-        var s = (iconName || name || "").toLowerCase();
+        var s = ((iconName || "") + " " + (name || "")).toLowerCase();
         if (s.indexOf("food") >= 0 || s.indexOf("drink") >= 0 || s.indexOf("restaurant") >= 0 || s.indexOf("coffee") >= 0) return "🍽";
         if (s.indexOf("transport") >= 0 || s.indexOf("car") >= 0 || s.indexOf("gas") >= 0) return "🚗";
-        if (s.indexOf("home") >= 0 || s.indexOf("rent") >= 0 || s.indexOf("house") >= 0) return "🏠";
+        if (s.indexOf("home") >= 0 || s.indexOf("rent") >= 0 || s.indexOf("house") >= 0 || s.indexOf("bills") >= 0) return "🏠";
         if (s.indexOf("shopping") >= 0 || s.indexOf("clothing") >= 0) return "🛍";
         if (s.indexOf("fun") >= 0 || s.indexOf("entertainment") >= 0) return "🎉";
         if (s.indexOf("health") >= 0 || s.indexOf("fitness") >= 0 || s.indexOf("gym") >= 0) return "💊";
         if (s.indexOf("salary") >= 0 || s.indexOf("wage") >= 0) return "💰";
-        if (s.indexOf("freelance") >= 0 || s.indexOf("work") >= 0 || s.indexOf("business") >= 0) return "💼";
+        if (s.indexOf("freelance") >= 0 || s.indexOf("work") >= 0 || s.indexOf("business") >= 0 || s.indexOf("office") >= 0) return "💼";
         if (s.indexOf("invest") >= 0 || s.indexOf("stock") >= 0) return "📈";
-        if (s.indexOf("subscri") >= 0 || s.indexOf("netflix") >= 0 || s.indexOf("apple") >= 0) return "📱";
+        if (s.indexOf("subscri") >= 0) return "📱";
         if (s.indexOf("cash") >= 0) return "💵";
-        if (s.indexOf("smoke") >= 0 || s.indexOf("smoking") >= 0) return "🚬";
+        if (s.indexOf("smok") >= 0) return "🚬";
         if (s.indexOf("gift") >= 0) return "🎁";
+        if (s.indexOf("girl") >= 0 || s.indexOf("love") >= 0) return "💝";
         if (name && name.length > 0) return name.charAt(0).toUpperCase();
         return "•";
     }

@@ -29,6 +29,7 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             categoryId: root.tx ? (root.tx.categoryId || "") : ""
             label: root.tx ? (root.tx.label || "") : ""
+            customColor: (root.tx && root.tx.kind === 1) ? Theme.transfer : "transparent"
             size: units.gu(5.5)
         }
 
@@ -45,7 +46,8 @@ Rectangle {
                     if (root.tx.label && root.tx.label.length > 0) return root.tx.label;
                     if (root.tx.kind === 1) return "Transfer";
                     var c = AppState.categoryById(root.tx.categoryId);
-                    return c ? c.name : (root.tx.isIncome ? "Income" : "Expense");
+                    if (c) return c.name;
+                    return root.tx.kind === 2 ? "Income" : "Expense";
                 }
                 font.pixelSize: Theme.fontHeading
                 font.bold: true
@@ -80,8 +82,7 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             minor: root.tx ? (root.tx.originalCost || root.tx.amount) : 0
             currency: root.tx ? (root.tx.originalCurrency || root.tx.currency) : "USD"
-            isIncome: root.tx ? root.tx.isIncome : false
-            showSign: true
+            kind: root.tx ? root.tx.kind : -1
             colored: true
             font.pixelSize: Theme.fontHeading
         }

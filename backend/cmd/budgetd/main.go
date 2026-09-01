@@ -41,8 +41,7 @@ func main() {
 			}
 		}
 	}
-
-	srv := api.NewServer(st, version)
+	srv := api.NewServer(st, version, *seedPath)
 	log.Printf("budgetd %s listening on %s (db=%s)", version, *addr, *dbPath)
 	if err := http.ListenAndServe(*addr, srv); err != nil {
 		log.Fatalf("serve: %v", err)

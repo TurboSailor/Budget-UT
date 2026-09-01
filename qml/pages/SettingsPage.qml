@@ -134,7 +134,7 @@ Item {
             // Data Management Card (Import / Export)
             Rectangle {
                 width: parent.width
-                height: units.gu(32)
+                height: units.gu(38)
                 radius: Theme.radiusCard
                 color: Theme.cardBackground
                 border.color: Theme.cardBorder
@@ -200,6 +200,26 @@ Item {
                             width: (parent.width - units.gu(1.2)) / 2
                             text: "Import CSV"
                             onClicked: root.doImportCSV()
+                        }
+                    }
+
+                    Rectangle {
+                        width: parent.width
+                        height: units.gu(4.5)
+                        radius: Theme.radiusSmall
+                        color: resetMouse.pressed ? "#FCA5A5" : "#FEE2E2"
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "Reset & Re-import Original Backup"
+                            color: Theme.expense
+                            font.pixelSize: Theme.fontBody
+                            font.bold: true
+                        }
+                        MouseArea {
+                            id: resetMouse
+                            anchors.fill: parent
+                            onClicked: root.doReset()
                         }
                     }
 
@@ -283,6 +303,23 @@ Item {
                 root.statusMsg = "Imported " + (res.imported || 0) + " rows!";
                 AppState.reload();
             }
+        });
+    }
+
+    // Wipes the database and re-imports the bundle shipped with the app, so a
+    // bad/partial import can be redone from the original Budget.realm export.
+    function doReset() {
+        root.statusMsg = "Resetting and re-importing original backup...";
+        Api.post("/api/reset", {}, function(err, res) {
+            if (err) {
+                root.statusMsg = "Reset error: " + err;
+                return;
+            }
+            var c = (res && res.counts) ? res.counts : {};
+            root.statusMsg = "Reset done: " + (c.transactions || 0) + " transactions, "
+                + (c.accounts || 0) + " accounts, " + (c.categories || 0) + " categories.";
+            AppState.reload();
+            AppState.txChanged();
         });
     }
 }

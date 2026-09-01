@@ -21,11 +21,12 @@ import (
 type Server struct {
 	st      *store.Store
 	version string
+	seed    string // bundle shipped with the click, used by /api/reset
 	mux     *http.ServeMux
 }
 
-func NewServer(st *store.Store, version string) *Server {
-	s := &Server{st: st, version: version, mux: http.NewServeMux()}
+func NewServer(st *store.Store, version, seed string) *Server {
+	s := &Server{st: st, version: version, seed: seed, mux: http.NewServeMux()}
 	s.routes()
 	return s
 }
@@ -63,6 +64,7 @@ func (s *Server) routes() {
 	m.HandleFunc("/api/export/csv", s.handleExportCSV)
 	m.HandleFunc("/api/import/bundle", s.handleImportBundle)
 	m.HandleFunc("/api/import/csv", s.handleImportCSV)
+	m.HandleFunc("/api/reset", s.handleReset)
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -662,4 +664,36 @@ func atoiDef(s string, def int) int {
 		return n
 	}
 	return def
+}
+
+// handleReset wipes the database and re-imports the bundle shipped with the
+// app (or an explicit path), so a broken/partial import can be redone from the
+// original backup without reinstalling.
+func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		Path string `json:"path"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	path := req.Path
+	if path == "" {
+		path = s.seed
+	}
+	if path == "" {
+		errJSON(w, http.StatusBadRequest, errors.New("no seed bundle configured"))
+		return
+	}
+	if _, err := os.Stat(path); err != nil {
+		errJSON(w, http.StatusBadRequest, err)
+		return
+	}
+	counts, err := importer.ImportBundle(s.st, path)
+	if err != nil {
+		errJSON(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"reset": true, "source": path, "counts": counts})
 }

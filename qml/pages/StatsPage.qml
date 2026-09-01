@@ -94,7 +94,7 @@ Item {
                         MoneyLabel {
                             minor: root.totalExpense
                             currency: AppState.wallets.system
-                            isIncome: false
+                            kind: 0
                             colored: true
                             font.pixelSize: Theme.fontTitle
                         }
@@ -107,7 +107,7 @@ Item {
                         MoneyLabel {
                             minor: root.totalIncome
                             currency: AppState.wallets.system
-                            isIncome: true
+                            kind: 2
                             colored: true
                             font.pixelSize: Theme.fontTitle
                         }

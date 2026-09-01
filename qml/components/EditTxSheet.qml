@@ -11,9 +11,8 @@ Rectangle {
     signal closed()
     signal saved()
 
-    // Working state
+    // Record state
     property int kind: 0 // 0: expense, 1: transfer, 2: income
-    property string amountStr: "0"
     property string selectedCatId: ""
     property string selectedSubId: ""
     property string selectedAccId: ""
@@ -21,6 +20,12 @@ Rectangle {
     property string txDay: AppState.todayDay
     property string labelText: ""
     property string remarkText: ""
+
+    // Calculator state: the source app lets you type "1200+340" straight into
+    // the amount field, so the pad is a real four-function calculator.
+    property string entry: "0"      // number currently being typed
+    property real acc: 0            // accumulated left-hand value
+    property string pendingOp: ""   // "+", "-", "*", "/"
 
     color: "transparent"
     visible: visibleSheet
@@ -44,11 +49,11 @@ Rectangle {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        height: Math.min(parent.height * 0.94, units.gu(78))
+        height: Math.min(parent.height * 0.94, units.gu(80))
         radius: Theme.radiusCard
         color: Theme.cardBackground
 
-        // Header: Close / Title / Save
+        // Header: Cancel / Title / Save
         Rectangle {
             id: header
             anchors.top: parent.top
@@ -125,7 +130,7 @@ Rectangle {
                             text: modelData.text
                             font.pixelSize: Theme.fontSub
                             font.bold: active
-                            color: active ? Theme.textPrimary : Theme.textSecondary
+                            color: active ? AppState.colorForKind(modelData.idx) : Theme.textSecondary
                         }
                         MouseArea {
                             anchors.fill: parent
@@ -139,7 +144,7 @@ Rectangle {
             }
         }
 
-        // Amount display
+        // Amount display + live expression
         Rectangle {
             id: amountBox
             anchors.top: kindBar.bottom
@@ -147,25 +152,37 @@ Rectangle {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.margins: units.gu(2)
-            height: units.gu(6)
+            height: units.gu(8)
             color: "transparent"
 
             Text {
+                id: curSym
                 anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
+                anchors.bottom: mainAmount.bottom
                 text: AppState.currencySymbol(root.accountCurrency())
-                font.pixelSize: Theme.fontTitleLarge
+                font.pixelSize: Theme.fontTitle
                 font.bold: true
                 color: Theme.textSecondary
             }
 
+            // Pending expression, e.g. "1200 +"
             Text {
                 anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                text: root.amountStr
+                anchors.top: parent.top
+                text: root.pendingOp !== "" ? (root.trimNum(root.acc) + " " + root.opGlyph(root.pendingOp)) : ""
+                font.pixelSize: Theme.fontSub
+                color: Theme.textMuted
+            }
+
+            Text {
+                id: mainAmount
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: units.gu(0.5)
+                text: root.entry
                 font.pixelSize: Theme.fontHero
                 font.bold: true
-                color: root.kind === 2 ? Theme.income : (root.kind === 1 ? Theme.transfer : Theme.expense)
+                color: AppState.colorForKind(root.kind)
             }
         }
 
@@ -185,8 +202,9 @@ Rectangle {
                 width: parent.width
                 spacing: units.gu(1.2)
 
-                // Accounts row
                 Item { width: 1; height: units.gu(0.2) }
+
+                // From account
                 Row {
                     Item { width: units.gu(1); height: 1 }
                     Text {
@@ -226,7 +244,7 @@ Rectangle {
                     }
                 }
 
-                // For transfer: To Account
+                // Transfer target
                 Item {
                     width: parent.width
                     height: toCol.height
@@ -254,7 +272,7 @@ Rectangle {
                                         height: units.gu(3.6)
                                         width: toAccLabel.width + units.gu(2.4)
                                         radius: height / 2
-                                        color: root.selectedToAccId === modelData.id ? Theme.accent : "#F3F4F6"
+                                        color: root.selectedToAccId === modelData.id ? Theme.transfer : "#F3F4F6"
                                         Text {
                                             id: toAccLabel
                                             anchors.centerIn: parent
@@ -274,7 +292,7 @@ Rectangle {
                     }
                 }
 
-                // Categories (for expense / income)
+                // Categories
                 Item {
                     width: parent.width
                     height: catCol.height
@@ -341,7 +359,7 @@ Rectangle {
                     }
                 }
 
-                // Subcategories (chips)
+                // Subcategories
                 Item {
                     width: parent.width
                     height: subCol.height
@@ -389,7 +407,7 @@ Rectangle {
                     }
                 }
 
-                // Note / Remark row
+                // Note + date
                 Row {
                     width: parent.width - units.gu(2)
                     anchors.horizontalCenter: parent.horizontalCenter
@@ -417,7 +435,7 @@ Rectangle {
                     }
                 }
 
-                // Delete button for editing
+                // Delete (edit mode only)
                 Rectangle {
                     width: parent.width - units.gu(4)
                     anchors.horizontalCenter: parent.horizontalCenter
@@ -441,13 +459,13 @@ Rectangle {
             }
         }
 
-        // Custom Numpad at bottom
+        // Calculator numpad
         Rectangle {
             id: numpad
             anchors.bottom: parent.bottom
             anchors.left: parent.left
             anchors.right: parent.right
-            height: units.gu(23)
+            height: units.gu(26)
             color: "#F8F9FB"
             border.color: Theme.cardBorder
             border.width: 1
@@ -455,53 +473,52 @@ Rectangle {
             Grid {
                 anchors.fill: parent
                 anchors.margins: units.gu(0.6)
-                columns: 4
+                columns: 5
                 spacing: units.gu(0.6)
 
                 Repeater {
                     model: [
-                        { t: "1", c: "#FFFFFF", act: "" },
-                        { t: "2", c: "#FFFFFF", act: "" },
-                        { t: "3", c: "#FFFFFF", act: "" },
-                        { t: "⌫", c: "#E5E7EB", act: "bk" },
-                        { t: "4", c: "#FFFFFF", act: "" },
-                        { t: "5", c: "#FFFFFF", act: "" },
-                        { t: "6", c: "#FFFFFF", act: "" },
-                        { t: "C", c: "#E5E7EB", act: "c" },
-                        { t: "7", c: "#FFFFFF", act: "" },
-                        { t: "8", c: "#FFFFFF", act: "" },
-                        { t: "9", c: "#FFFFFF", act: "" },
-                        { t: "✓", c: Theme.primary, act: "save" },
-                        { t: "", c: "#F8F9FB", act: "" },
-                        { t: "0", c: "#FFFFFF", act: "" },
-                        { t: ".", c: "#FFFFFF", act: "" },
-                        { t: "00", c: "#FFFFFF", act: "00" }
+                        { t: "1",  a: "d" }, { t: "2", a: "d" }, { t: "3", a: "d" }, { t: "÷", a: "op", op: "/" }, { t: "⌫", a: "bk" },
+                        { t: "4",  a: "d" }, { t: "5", a: "d" }, { t: "6", a: "d" }, { t: "×", a: "op", op: "*" }, { t: "C",  a: "clr" },
+                        { t: "7",  a: "d" }, { t: "8", a: "d" }, { t: "9", a: "d" }, { t: "−", a: "op", op: "-" }, { t: "=",  a: "eq" },
+                        { t: ".",  a: "d" }, { t: "0", a: "d" }, { t: "00", a: "d00" }, { t: "+", a: "op", op: "+" }, { t: "✓", a: "save" }
                     ]
                     delegate: Rectangle {
-                        width: (parent.width - units.gu(1.8)) / 4
+                        property bool isOp: modelData.a === "op" || modelData.a === "eq"
+                        property bool isSave: modelData.a === "save"
+                        width: (parent.width - units.gu(2.4)) / 5
                         height: (parent.height - units.gu(1.8)) / 4
                         radius: units.gu(0.8)
-                        color: keyMouse.pressed ? "#D1D5DB" : modelData.c
+                        color: {
+                            if (keyMouse.pressed) return "#D1D5DB"
+                            if (isSave) return Theme.primary
+                            if (isOp) return "#EEF0F5"
+                            if (modelData.a === "bk" || modelData.a === "clr") return "#E5E7EB"
+                            return "#FFFFFF"
+                        }
                         border.color: "#E5E7EB"
                         border.width: 1
 
                         Text {
                             anchors.centerIn: parent
                             text: modelData.t
-                            font.pixelSize: units.dp(22)
+                            font.pixelSize: modelData.t === "00" ? units.dp(17) : units.dp(21)
                             font.bold: true
-                            color: Theme.textPrimary
+                            color: isOp ? Theme.accent : Theme.textPrimary
                         }
 
                         MouseArea {
                             id: keyMouse
                             anchors.fill: parent
                             onClicked: {
-                                if (modelData.act === "bk") root.backspace()
-                                else if (modelData.act === "c") root.amountStr = "0"
-                                else if (modelData.act === "save") root.save()
-                                else if (modelData.act === "00") { root.appendDigit("0"); root.appendDigit("0") }
-                                else if (modelData.t) root.appendDigit(modelData.t)
+                                var a = modelData.a
+                                if (a === "d") root.appendDigit(modelData.t)
+                                else if (a === "d00") { root.appendDigit("0"); root.appendDigit("0") }
+                                else if (a === "op") root.applyOperator(modelData.op)
+                                else if (a === "eq") root.equals()
+                                else if (a === "bk") root.backspace()
+                                else if (a === "clr") root.clearAll()
+                                else if (a === "save") root.save()
                             }
                         }
                     }
@@ -510,34 +527,90 @@ Rectangle {
         }
     }
 
+    // ---- calculator ----
+
     function appendDigit(d) {
-        if (amountStr === "0" && d !== ".") {
-            amountStr = d
+        if (d === "." && entry.indexOf(".") >= 0) return
+        if (entry === "0" && d !== ".") {
+            entry = d
             return
         }
-        if (d === "." && amountStr.indexOf(".") >= 0) return
-        var dot = amountStr.indexOf(".")
-        if (dot >= 0 && amountStr.length - dot > 2) return
-        if (amountStr.length > 9) return
-        amountStr += d
+        var dot = entry.indexOf(".")
+        if (dot >= 0 && entry.length - dot > 2) return // max 2 decimals
+        if (entry.replace(".", "").length >= 12) return
+        entry += d
     }
 
     function backspace() {
-        if (amountStr.length <= 1) {
-            amountStr = "0"
+        if (entry.length <= 1) {
+            entry = "0"
             return
         }
-        amountStr = amountStr.substring(0, amountStr.length - 1)
+        entry = entry.substring(0, entry.length - 1)
     }
+
+    function clearAll() {
+        entry = "0"
+        acc = 0
+        pendingOp = ""
+    }
+
+    function compute(a, op, b) {
+        switch (op) {
+        case "+": return a + b
+        case "-": return a - b
+        case "*": return a * b
+        case "/": return b === 0 ? a : a / b
+        }
+        return b
+    }
+
+    function applyOperator(op) {
+        var cur = parseFloat(entry) || 0
+        if (pendingOp !== "") {
+            acc = compute(acc, pendingOp, cur)
+        } else {
+            acc = cur
+        }
+        pendingOp = op
+        entry = "0"
+    }
+
+    function equals() {
+        if (pendingOp === "") return
+        var cur = parseFloat(entry) || 0
+        acc = compute(acc, pendingOp, cur)
+        pendingOp = ""
+        entry = trimNum(acc)
+    }
+
+    // resolve() folds any pending operation so Save always stores a number.
+    function resolve() {
+        var cur = parseFloat(entry) || 0
+        if (pendingOp !== "") return compute(acc, pendingOp, cur)
+        return cur
+    }
+
+    function trimNum(v) {
+        var r = Math.round(v * 100) / 100
+        return (r % 1 === 0) ? ("" + r) : r.toFixed(2)
+    }
+
+    function opGlyph(op) {
+        if (op === "*") return "×"
+        if (op === "/") return "÷"
+        if (op === "-") return "−"
+        return "+"
+    }
+
+    // ---- data helpers ----
 
     function filteredCategories() {
         var out = []
         var wantIncome = (kind === 2)
         for (var i = 0; i < AppState.categories.length; i++) {
             var c = AppState.categories[i]
-            if (c.status === 0 && Boolean(c.isIncome) === wantIncome) {
-                out.push(c)
-            }
+            if (c.status === 0 && Boolean(c.isIncome) === wantIncome) out.push(c)
         }
         return out
     }
@@ -554,16 +627,15 @@ Rectangle {
 
     function autoPickCat() {
         var list = filteredCategories()
-        if (list.length > 0) {
-            selectedCatId = list[0].id
-        }
+        selectedCatId = list.length > 0 ? list[0].id : ""
     }
 
     function open(existing) {
         tx = existing || null
+        clearAll()
         if (tx) {
             kind = tx.kind
-            amountStr = ((tx.originalCost || tx.amount) / 100).toFixed(2)
+            entry = trimNum((tx.originalCost || tx.amount) / 100)
             selectedCatId = tx.categoryId || ""
             selectedSubId = tx.subcategoryId || ""
             selectedAccId = tx.accountId || ""
@@ -573,15 +645,12 @@ Rectangle {
             remarkText = tx.remark || ""
         } else {
             kind = 0
-            amountStr = "0"
             selectedSubId = ""
             selectedToAccId = ""
             txDay = AppState.selectedDay || AppState.todayDay
             labelText = ""
             remarkText = ""
-            if (AppState.accounts.length > 0) {
-                selectedAccId = AppState.accounts[0].id
-            }
+            if (AppState.accounts.length > 0) selectedAccId = AppState.accounts[0].id
             autoPickCat()
         }
         visibleSheet = true
@@ -593,23 +662,16 @@ Rectangle {
     }
 
     function save() {
-        var val = parseFloat(amountStr) || 0
-        if (val <= 0) {
+        var val = resolve()
+        if (!(val > 0)) {
             close()
             return
         }
         var minor = Math.round(val * 100)
         var cur = accountCurrency()
         var sysCur = AppState.wallets.system || "USD"
-
-        var rate = 1.0
-        for (var i = 0; i < AppState.currencies.length; i++) {
-            if (AppState.currencies[i].code === cur) {
-                rate = AppState.currencies[i].rate || 1.0
-                break
-            }
-        }
-        var sysMinor = Math.round(minor / rate)
+        // rates are "units per USD": account -> USD -> system currency
+        var sysMinor = Math.round(minor / AppState.rateOf(cur) * AppState.rateOf(sysCur))
 
         var payload = {
             kind: kind,
@@ -620,6 +682,7 @@ Rectangle {
             originalCurrency: cur,
             accountId: selectedAccId || null,
             toAccountId: (kind === 1 ? selectedToAccId : null) || null,
+            toAmount: (kind === 1 ? minor : 0),
             categoryId: (kind !== 1 ? selectedCatId : null) || null,
             subcategoryId: (kind !== 1 && selectedSubId ? selectedSubId : null),
             label: labelText,
@@ -627,25 +690,17 @@ Rectangle {
             day: txDay
         }
 
-        if (tx && tx.id) {
-            Api.put("/api/tx/" + tx.id, payload, function(err, res) {
-                if (!err) {
-                    AppState.reload()
-                    AppState.txChanged()
-                    root.saved()
-                }
-                close()
-            })
-        } else {
-            Api.post("/api/tx", payload, function(err, res) {
-                if (!err) {
-                    AppState.reload()
-                    AppState.txChanged()
-                    root.saved()
-                }
-                close()
-            })
+        var done = function(err, res) {
+            if (!err) {
+                AppState.reload()
+                AppState.txChanged()
+                root.saved()
+            }
+            close()
         }
+
+        if (tx && tx.id) Api.put("/api/tx/" + tx.id, payload, done)
+        else Api.post("/api/tx", payload, done)
     }
 
     function deleteTx() {
