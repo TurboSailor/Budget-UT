@@ -106,7 +106,7 @@ func (s *Server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 		"settings":      settings,
 		"currencies":    curs,
 		"groups":        groups,
-		"accounts":      accts,
+		"accounts":      activeAccounts(accts),
 		"bills":         bills,
 		"categories":    cats,
 		"subcategories": subs,
@@ -231,7 +231,7 @@ func (s *Server) handleAccounts(w http.ResponseWriter, r *http.Request) {
 			errJSON(w, http.StatusInternalServerError, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, accts)
+		writeJSON(w, http.StatusOK, activeAccounts(accts))
 	case http.MethodPost:
 		var a model.Account
 		if err := json.NewDecoder(r.Body).Decode(&a); err != nil {
@@ -1162,4 +1162,18 @@ func pinHash(salt []byte, pin string) string {
 	h.Write(salt)
 	h.Write([]byte(pin))
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+// activeAccounts drops soft-deleted rows. Deleting an account only sets
+// status=1 (transactions and the balance log keep pointing at it), so every
+// list that reaches the UI has to filter, otherwise a deleted account keeps
+// showing up on the Cards screen.
+func activeAccounts(in []*model.Account) []*model.Account {
+	out := make([]*model.Account, 0, len(in))
+	for _, a := range in {
+		if a.Status == model.StatusActive {
+			out = append(out, a)
+		}
+	}
+	return out
 }

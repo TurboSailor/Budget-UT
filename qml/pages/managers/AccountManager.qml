@@ -28,6 +28,9 @@ Item {
     property bool editInAssets: true
     property bool editHidden: false
     property string editColor: "#5AA6FE"
+    // Carried through the editor so saving does not reset the account's place
+    // in the list (the payload used to hardcode sorted: 0).
+    property real editSorted: 0
 
     readonly property var kindNames: ["Debit / Cash", "Credit card", "Custom / Investment"]
 
@@ -72,6 +75,7 @@ Item {
         root.editInAssets = true;
         root.editHidden = false;
         root.editColor = Theme.categoryPalette[1];
+        root.editSorted = 0;
         root.editorOpen = true;
     }
 
@@ -84,6 +88,7 @@ Item {
         root.editInAssets = a.inAssets === true;
         root.editHidden = a.hidden === true;
         root.editColor = root.hexColor(a.color, Theme.categoryPalette[1]);
+        root.editSorted = a.sorted || 0;
         root.editorOpen = true;
     }
 
@@ -109,7 +114,7 @@ Item {
             code: "",
             inAssets: root.editInAssets,
             hidden: root.editHidden,
-            sorted: 0,
+            sorted: root.editSorted,
             status: 0
         };
 

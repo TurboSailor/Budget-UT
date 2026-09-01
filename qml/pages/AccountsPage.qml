@@ -284,7 +284,14 @@ Item {
     }
 
     function buildGroupedSections() {
-        var accts = AppState.accounts || [];
+        // Deleting an account is a soft delete (status=1) and the group still
+        // lists its id, so filter here too — the server already drops them, and
+        // this keeps a stale payload from resurrecting a deleted card.
+        var all = AppState.accounts || [];
+        var accts = [];
+        for (var n = 0; n < all.length; n++) {
+            if (all[n].status === 0) accts.push(all[n]);
+        }
         var groups = AppState.groups || [];
         var assigned = {};
         var sections = [];

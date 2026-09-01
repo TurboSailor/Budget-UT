@@ -1,10 +1,19 @@
 #!/usr/bin/env bash
 # Install a built .click on the phone and verify the click/apparmor registration.
-# Usage: scripts/deploy.sh [CLICK]   (BUDGET_SUDO_PASS overrides the sudo password)
+# Usage: BUDGET_SUDO_PASS=... scripts/deploy.sh [CLICK]
+#
+# The device sudo password is NEVER hardcoded here: this file is committed, and
+# a default would publish the phone's password. Supply it via the environment
+# (or a local untracked file that exports it).
 set -euo pipefail
 
 CLICK="${1:-}"
-PASS="${BUDGET_SUDO_PASS:-googooshasha}"
+PASS="${BUDGET_SUDO_PASS:-}"
+if [ -z "$PASS" ]; then
+    echo "deploy.sh: BUDGET_SUDO_PASS is not set." >&2
+    echo "           run:  BUDGET_SUDO_PASS='<device password>' scripts/deploy.sh" >&2
+    exit 1
+fi
 REMOTE_DIR="/home/phablet/Downloads"
 
 ADB=(adb)
