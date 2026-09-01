@@ -413,14 +413,17 @@ Rectangle {
 
                     TextField {
                         id: noteInput
-                        width: parent.width - units.gu(12)
+                        // Derive from the sibling chip instead of a magic
+                        // constant, so the pair always fits the row exactly.
+                        width: parent.width - dateChip.width - units.gu(1)
                         placeholderText: "Note / Merchant..."
                         text: root.labelText
                         onTextChanged: root.labelText = text
                     }
 
                     Rectangle {
-                        width: units.gu(11)
+                        id: dateChip
+                        width: Math.min(units.gu(11), parent.width * 0.32)
                         height: noteInput.height
                         radius: Theme.radiusSmall
                         color: dateMouse.pressed ? Theme.divider : "#F3F4F6"

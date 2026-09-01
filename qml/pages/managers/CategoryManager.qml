@@ -229,29 +229,33 @@ Item {
 
                     Item { width: units.gu(1); height: units.gu(0.5) }
 
-                    Row {
+                    // Anchored header: the title elides and the button keeps its
+                    // place at the right edge on any screen width. The previous
+                    // spacer arithmetic (parent.width - 22gu) pushed "+ Add" off
+                    // screen as soon as the title was wider than the allowance.
+                    Item {
                         width: parent.width
                         height: units.gu(4.5)
-                        spacing: units.gu(1)
 
                         Text {
+                            anchors.left: parent.left
+                            anchors.right: groupAddBtn.left
+                            anchors.rightMargin: units.gu(1)
                             anchors.verticalCenter: parent.verticalCenter
+                            elide: Text.ElideRight
                             text: group.groupIncome ? "Income categories" : "Expense categories"
                             font.pixelSize: Theme.fontHeading
                             font.bold: true
                             color: Theme.textPrimary
                         }
 
-                        Item {
-                            width: parent.width - units.gu(22)
-                            height: units.gu(1)
-                        }
-
                         Rectangle {
+                            id: groupAddBtn
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
                             width: units.gu(10)
                             height: units.gu(4)
                             radius: Theme.radiusSmall
-                            anchors.verticalCenter: parent.verticalCenter
                             color: groupAdd.pressed ? Theme.primaryDark : Theme.primary
 
                             Text {

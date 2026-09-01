@@ -27,27 +27,32 @@ Item {
 
             Item { width: 1; height: units.gu(0.5) } // Top spacer
 
-            // Header: Title + Add
-            Row {
+            // Header: Title + Add. Anchored, not spacer-arithmetic, so it
+            // adapts to any width instead of pushing the button off-screen.
+            Item {
                 width: parent.width
                 height: units.gu(4.5)
 
                 Text {
+                    anchors.left: parent.left
+                    anchors.right: addAccountBtn.left
+                    anchors.rightMargin: units.gu(1)
+                    anchors.verticalCenter: parent.verticalCenter
+                    elide: Text.ElideRight
                     text: "Accounts"
                     font.pixelSize: Theme.fontTitle
                     font.bold: true
                     color: Theme.textPrimary
-                    anchors.verticalCenter: parent.verticalCenter
                 }
 
-                Item { width: parent.width - units.gu(18); height: 1 }
-
                 Rectangle {
+                    id: addAccountBtn
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
                     width: units.gu(4)
                     height: units.gu(4)
                     radius: width / 2
                     color: Theme.primary
-                    anchors.verticalCenter: parent.verticalCenter
 
                     Text {
                         anchors.centerIn: parent

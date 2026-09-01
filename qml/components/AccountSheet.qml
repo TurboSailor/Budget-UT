@@ -238,8 +238,11 @@ Rectangle {
                         }
 
                         Column {
+                            id: logTextCol
                             anchors.verticalCenter: parent.verticalCenter
-                            width: parent.width - units.gu(19)
+                            // Derived from siblings, not magic constants, so the
+                            // row reflows instead of overflowing on narrow screens.
+                            width: parent.width - units.gu(4) - logAmountCol.width - units.gu(2)
                             spacing: units.gu(0.2)
 
                             Text {
@@ -259,8 +262,9 @@ Rectangle {
                         }
 
                         Column {
+                            id: logAmountCol
                             anchors.verticalCenter: parent.verticalCenter
-                            width: units.gu(13)
+                            width: Math.min(units.gu(13), parent.width * 0.36)
                             spacing: units.gu(0.2)
 
                             Text {

@@ -152,12 +152,14 @@ Rectangle {
 
             Item { width: 1; height: units.gu(0.4) }
 
+            // Buttons split the available width instead of using fixed sizes,
+            // so they never run past a narrow panel.
             Row {
-                anchors.horizontalCenter: parent.horizontalCenter
+                width: parent.width
                 spacing: units.gu(1.5)
 
                 Rectangle {
-                    width: units.gu(14)
+                    width: (parent.width - units.gu(1.5)) / 2
                     height: units.gu(4.5)
                     radius: Theme.radiusSmall
                     color: "#F3F4F6"
@@ -174,7 +176,7 @@ Rectangle {
                 }
 
                 Rectangle {
-                    width: units.gu(14)
+                    width: (parent.width - units.gu(1.5)) / 2
                     height: units.gu(4.5)
                     radius: Theme.radiusSmall
                     color: Theme.primary
