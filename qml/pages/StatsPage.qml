@@ -15,16 +15,16 @@ Item {
 
     Flickable {
         anchors.fill: parent
-        contentHeight: col.height + 40
+        contentHeight: col.height + units.gu(6)
         clip: true
 
         Column {
             id: col
-            width: Math.min(parent.width - 24, 520)
+            width: parent.width - units.gu(3)
             anchors.horizontalCenter: parent.horizontalCenter
-            spacing: 12
+            spacing: units.gu(1.5)
 
-            Item { width: 1; height: 4 } // Top spacer
+            Item { width: 1; height: units.gu(0.5) } // Top spacer
 
             // Header
             Text {
@@ -37,8 +37,8 @@ Item {
             // Period selector
             Rectangle {
                 width: parent.width
-                height: 36
-                radius: 18
+                height: units.gu(4.5)
+                radius: height / 2
                 color: "#EEF0F5"
 
                 Row {
@@ -53,13 +53,13 @@ Item {
                             property bool active: root.period === modelData.key
                             width: parent.width / 3
                             height: parent.height
-                            radius: 18
+                            radius: height / 2
                             color: active ? Theme.cardBackground : "transparent"
 
                             Text {
                                 anchors.centerIn: parent
                                 text: modelData.label
-                                font.pixelSize: 11
+                                font.pixelSize: Theme.fontSub
                                 font.bold: active
                                 color: active ? Theme.textPrimary : Theme.textSecondary
                             }
@@ -78,38 +78,38 @@ Item {
             // Overview Summary Card
             Rectangle {
                 width: parent.width
-                height: 86
+                height: units.gu(11)
                 radius: Theme.radiusCard
                 color: Theme.cardBackground
                 border.color: Theme.cardBorder
 
                 Row {
                     anchors.fill: parent
-                    anchors.margins: 14
+                    anchors.margins: units.gu(1.8)
 
                     Column {
                         width: parent.width / 2
-                        spacing: 2
+                        spacing: units.gu(0.4)
                         Text { text: "Total Expense"; font.pixelSize: Theme.fontSub; color: Theme.textSecondary }
                         MoneyLabel {
                             minor: root.totalExpense
                             currency: AppState.wallets.system
                             isIncome: false
                             colored: true
-                            font.pixelSize: 20
+                            font.pixelSize: Theme.fontTitle
                         }
                     }
 
                     Column {
                         width: parent.width / 2
-                        spacing: 2
+                        spacing: units.gu(0.4)
                         Text { text: "Total Income"; font.pixelSize: Theme.fontSub; color: Theme.textSecondary }
                         MoneyLabel {
                             minor: root.totalIncome
                             currency: AppState.wallets.system
                             isIncome: true
                             colored: true
-                            font.pixelSize: 20
+                            font.pixelSize: Theme.fontTitle
                         }
                     }
                 }
@@ -125,41 +125,41 @@ Item {
 
             Column {
                 width: parent.width
-                spacing: 8
+                spacing: units.gu(1)
 
                 Repeater {
                     model: root.statRows
                     delegate: Rectangle {
                         width: parent.width
-                        height: 60
+                        height: units.gu(7.5)
                         radius: Theme.radiusCard
                         color: Theme.cardBackground
                         border.color: Theme.cardBorder
 
                         Row {
                             anchors.fill: parent
-                            anchors.margins: 10
-                            spacing: 10
+                            anchors.margins: units.gu(1.2)
+                            spacing: units.gu(1.4)
 
                             // Category icon
                             Rectangle {
-                                width: 40
-                                height: 40
-                                radius: 20
+                                width: units.gu(5)
+                                height: units.gu(5)
+                                radius: width / 2
                                 color: modelData.color ? (modelData.color.indexOf("#") === 0 ? modelData.color : "#" + modelData.color) : Theme.primary
                                 anchors.verticalCenter: parent.verticalCenter
 
                                 Text {
                                     anchors.centerIn: parent
                                     text: AppState.categoryGlyph(modelData.icon, modelData.label)
-                                    font.pixelSize: 18
+                                    font.pixelSize: units.dp(20)
                                 }
                             }
 
                             Column {
                                 anchors.verticalCenter: parent.verticalCenter
-                                width: parent.width - 50 - amtCol.width - 10
-                                spacing: 4
+                                width: parent.width - units.gu(6.4) - amtCol.width - units.gu(1.5)
+                                spacing: units.gu(0.5)
 
                                 Row {
                                     width: parent.width
@@ -169,7 +169,7 @@ Item {
                                         font.bold: true
                                         color: Theme.textPrimary
                                     }
-                                    Item { width: 8; height: 1 }
+                                    Item { width: units.gu(1); height: 1 }
                                     Text {
                                         text: modelData.count + " tx"
                                         font.pixelSize: Theme.fontSub
@@ -181,13 +181,13 @@ Item {
                                 // Percentage bar
                                 Rectangle {
                                     width: parent.width
-                                    height: 4
-                                    radius: 2
+                                    height: units.gu(0.6)
+                                    radius: height / 2
                                     color: "#F3F4F6"
 
                                     Rectangle {
                                         height: parent.height
-                                        radius: 2
+                                        radius: height / 2
                                         width: root.totalExpense > 0 ? (parent.width * (modelData.expenseMinor / root.totalExpense)) : 0
                                         color: modelData.color ? (modelData.color.indexOf("#") === 0 ? modelData.color : "#" + modelData.color) : Theme.accent
                                     }
@@ -197,7 +197,7 @@ Item {
                             Column {
                                 id: amtCol
                                 anchors.verticalCenter: parent.verticalCenter
-                                spacing: 2
+                                spacing: units.gu(0.2)
 
                                 Text {
                                     anchors.right: parent.right
@@ -210,7 +210,7 @@ Item {
                                 Text {
                                     anchors.right: parent.right
                                     text: root.totalExpense > 0 ? ((modelData.expenseMinor / root.totalExpense) * 100).toFixed(1) + "%" : "0%"
-                                    font.pixelSize: 10
+                                    font.pixelSize: Theme.fontMicro
                                     color: Theme.textSecondary
                                 }
                             }
@@ -221,7 +221,7 @@ Item {
                 // Empty state
                 Rectangle {
                     width: parent.width
-                    height: 80
+                    height: units.gu(10)
                     radius: Theme.radiusCard
                     color: Theme.cardBackground
                     visible: root.statRows.length === 0
@@ -265,6 +265,7 @@ Item {
     }
 
     Component.onCompleted: loadStats()
+
     Connections {
         target: AppState
         function onTxChanged() { root.loadStats(); }

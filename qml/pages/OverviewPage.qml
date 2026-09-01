@@ -13,27 +13,25 @@ Item {
     property string currentMonth: AppState.selectedMonth
     property var calendarDays: []
     property var transactions: []
-    property string activeFilter: "Month" // Today | Week | Month | All
-    property int filterExpense: 0
-    property int filterIncome: 0
+    property string activeFilter: "Month" // Today | Month | All
 
     Flickable {
         anchors.fill: parent
-        contentHeight: contentCol.height + 40
+        contentHeight: contentCol.height + units.gu(6)
         clip: true
 
         Column {
             id: contentCol
-            width: Math.min(parent.width - 24, 520)
+            width: parent.width - units.gu(3)
             anchors.horizontalCenter: parent.horizontalCenter
-            spacing: 12
+            spacing: units.gu(1.5)
 
-            Item { width: 1; height: 4 } // Top spacer
+            Item { width: 1; height: units.gu(0.5) } // Top spacer
 
             // Top Header: Title + Gear
             Row {
                 width: parent.width
-                height: 36
+                height: units.gu(4.5)
 
                 Text {
                     text: "My Wallet"
@@ -43,12 +41,12 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                 }
 
-                Item { width: parent.width - 200; height: 1 }
+                Item { width: parent.width - units.gu(22); height: 1 }
 
                 Rectangle {
-                    width: 36
-                    height: 36
-                    radius: 18
+                    width: units.gu(4.5)
+                    height: units.gu(4.5)
+                    radius: width / 2
                     color: Theme.cardBackground
                     border.color: Theme.cardBorder
                     anchors.verticalCenter: parent.verticalCenter
@@ -56,7 +54,7 @@ Item {
                     Text {
                         anchors.centerIn: parent
                         text: "⚙"
-                        font.pixelSize: 18
+                        font.pixelSize: units.dp(20)
                     }
                     MouseArea {
                         anchors.fill: parent
@@ -68,15 +66,15 @@ Item {
             // Total Balance Card
             Rectangle {
                 width: parent.width
-                height: 110
+                height: units.gu(14)
                 radius: Theme.radiusCard
                 color: Theme.cardBackground
                 border.color: Theme.cardBorder
 
                 Column {
                     anchors.fill: parent
-                    anchors.margins: 14
-                    spacing: 4
+                    anchors.margins: units.gu(1.8)
+                    spacing: units.gu(0.6)
 
                     Text {
                         text: "Total Balance"
@@ -88,15 +86,15 @@ Item {
                         minor: AppState.wallets.totalMinor
                         currency: AppState.wallets.system
                         colored: false
-                        font.pixelSize: Theme.fontTitleLarge
+                        font.pixelSize: Theme.fontHero
                     }
 
                     Row {
-                        spacing: 20
+                        spacing: units.gu(2.5)
 
                         Row {
-                            spacing: 4
-                            Text { text: "▲"; font.pixelSize: 10; color: Theme.income; anchors.verticalCenter: parent.verticalCenter }
+                            spacing: units.gu(0.6)
+                            Text { text: "▲"; font.pixelSize: units.dp(11); color: Theme.income; anchors.verticalCenter: parent.verticalCenter }
                             Text { text: "Income:"; font.pixelSize: Theme.fontSub; color: Theme.textSecondary }
                             MoneyLabel {
                                 minor: AppState.wallets.incomeMinor
@@ -108,8 +106,8 @@ Item {
                         }
 
                         Row {
-                            spacing: 4
-                            Text { text: "▼"; font.pixelSize: 10; color: Theme.expense; anchors.verticalCenter: parent.verticalCenter }
+                            spacing: units.gu(0.6)
+                            Text { text: "▼"; font.pixelSize: units.dp(11); color: Theme.expense; anchors.verticalCenter: parent.verticalCenter }
                             Text { text: "Expense:"; font.pixelSize: Theme.fontSub; color: Theme.textSecondary }
                             MoneyLabel {
                                 minor: AppState.wallets.expenseMinor
@@ -126,20 +124,20 @@ Item {
             // Statistics / Month Bar Chart Card
             Rectangle {
                 width: parent.width
-                height: 200
+                height: units.gu(25)
                 radius: Theme.radiusCard
                 color: Theme.cardBackground
                 border.color: Theme.cardBorder
 
                 Column {
                     anchors.fill: parent
-                    anchors.margins: 12
-                    spacing: 4
+                    anchors.margins: units.gu(1.4)
+                    spacing: units.gu(0.6)
 
                     // Month navigator
                     Row {
                         width: parent.width
-                        height: 28
+                        height: units.gu(3.5)
 
                         Text {
                             text: "Daily Activity"
@@ -149,19 +147,19 @@ Item {
                             anchors.verticalCenter: parent.verticalCenter
                         }
 
-                        Item { width: parent.width - 240; height: 1 }
+                        Item { width: parent.width - units.gu(28); height: 1 }
 
                         Row {
-                            spacing: 8
+                            spacing: units.gu(1)
                             anchors.verticalCenter: parent.verticalCenter
 
                             Text {
                                 text: "◀"
-                                font.pixelSize: 12
+                                font.pixelSize: units.dp(14)
                                 color: Theme.textSecondary
                                 MouseArea {
                                     anchors.fill: parent
-                                    anchors.margins: -6
+                                    anchors.margins: -units.gu(0.8)
                                     onClicked: root.shiftMonth(-1)
                                 }
                             }
@@ -175,11 +173,11 @@ Item {
 
                             Text {
                                 text: "▶"
-                                font.pixelSize: 12
+                                font.pixelSize: units.dp(14)
                                 color: Theme.textSecondary
                                 MouseArea {
                                     anchors.fill: parent
-                                    anchors.margins: -6
+                                    anchors.margins: -units.gu(0.8)
                                     onClicked: root.shiftMonth(1)
                                 }
                             }
@@ -188,7 +186,7 @@ Item {
 
                     BarChart {
                         width: parent.width
-                        height: 145
+                        height: units.gu(18)
                         days: root.calendarDays
                         selectedDay: AppState.selectedDay
                         onBarClicked: {
@@ -202,8 +200,8 @@ Item {
             // Filter pills: Today | Month | All
             Row {
                 width: parent.width
-                height: 32
-                spacing: 6
+                height: units.gu(4)
+                spacing: units.gu(0.8)
 
                 Text {
                     text: "Transactions"
@@ -211,19 +209,19 @@ Item {
                     font.bold: true
                     color: Theme.textPrimary
                     anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width - 220
+                    width: parent.width - units.gu(24)
                 }
 
                 Row {
-                    spacing: 4
+                    spacing: units.gu(0.6)
                     anchors.verticalCenter: parent.verticalCenter
                     Repeater {
                         model: ["Today", "Month", "All"]
                         delegate: Rectangle {
                             property bool active: root.activeFilter === modelData
-                            width: filterLbl.width + 16
-                            height: 26
-                            radius: 13
+                            width: filterLbl.width + units.gu(2)
+                            height: units.gu(3.2)
+                            radius: height / 2
                             color: active ? Theme.primary : Theme.cardBackground
                             border.color: active ? Theme.primaryDark : Theme.cardBorder
 
@@ -231,7 +229,7 @@ Item {
                                 id: filterLbl
                                 anchors.centerIn: parent
                                 text: modelData
-                                font.pixelSize: 11
+                                font.pixelSize: Theme.fontMicro
                                 font.bold: active
                                 color: active ? Theme.primaryText : Theme.textSecondary
                             }
@@ -250,7 +248,7 @@ Item {
             // Transaction list
             Column {
                 width: parent.width
-                spacing: 0
+                spacing: units.gu(0.4)
 
                 Repeater {
                     model: root.transactions
@@ -264,7 +262,7 @@ Item {
                 // Empty state
                 Rectangle {
                     width: parent.width
-                    height: 80
+                    height: units.gu(10)
                     radius: Theme.radiusCard
                     color: Theme.cardBackground
                     visible: root.transactions.length === 0
@@ -314,6 +312,8 @@ Item {
         if (activeFilter === "Today") {
             q += "&from=" + AppState.todayDay + "&to=" + AppState.todayDay;
         } else if (activeFilter === "Month") {
+            var y = currentMonth.split("-")[0];
+            var m = currentMonth.split("-")[1];
             q += "&from=" + currentMonth + "-01&to=" + currentMonth + "-31";
         }
         Api.get(q, function(err, res) {

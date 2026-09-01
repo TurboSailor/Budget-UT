@@ -17,21 +17,21 @@ Item {
 
     Flickable {
         anchors.fill: parent
-        contentHeight: col.height + 40
+        contentHeight: col.height + units.gu(6)
         clip: true
 
         Column {
             id: col
-            width: Math.min(parent.width - 24, 520)
+            width: parent.width - units.gu(3)
             anchors.horizontalCenter: parent.horizontalCenter
-            spacing: 12
+            spacing: units.gu(1.5)
 
-            Item { width: 1; height: 4 } // Top spacer
+            Item { width: 1; height: units.gu(0.5) } // Top spacer
 
             // Header: Title + Add
             Row {
                 width: parent.width
-                height: 36
+                height: units.gu(4.5)
 
                 Text {
                     text: "Budget"
@@ -41,19 +41,19 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                 }
 
-                Item { width: parent.width - 160; height: 1 }
+                Item { width: parent.width - units.gu(16); height: 1 }
 
                 Rectangle {
-                    width: 32
-                    height: 32
-                    radius: 16
+                    width: units.gu(4)
+                    height: units.gu(4)
+                    radius: width / 2
                     color: Theme.primary
                     anchors.verticalCenter: parent.verticalCenter
 
                     Text {
                         anchors.centerIn: parent
                         text: "+"
-                        font.pixelSize: 20
+                        font.pixelSize: units.dp(24)
                         font.bold: true
                         color: Theme.primaryText
                     }
@@ -67,23 +67,23 @@ Item {
             // Top Budget Cards (Monthly & Daily)
             Row {
                 width: parent.width
-                spacing: 10
+                spacing: units.gu(1.2)
 
                 // Monthly Card
                 Rectangle {
-                    width: (parent.width - 10) / 2
-                    height: 100
+                    width: (parent.width - units.gu(1.2)) / 2
+                    height: units.gu(13)
                     radius: Theme.radiusCard
                     color: "#FEF3C7" // Soft yellow/orange
 
                     Column {
                         anchors.fill: parent
-                        anchors.margins: 12
-                        spacing: 2
+                        anchors.margins: units.gu(1.6)
+                        spacing: units.gu(0.4)
 
                         Text {
                             text: "Monthly Budget"
-                            font.pixelSize: 11
+                            font.pixelSize: Theme.fontSub
                             color: Theme.textSecondary
                         }
 
@@ -91,12 +91,12 @@ Item {
                             minor: root.totalBudget
                             currency: AppState.wallets.system
                             colored: false
-                            font.pixelSize: 20
+                            font.pixelSize: Theme.fontTitle
                         }
 
                         Text {
                             text: "Spent: " + AppState.formatMoney(root.totalSpent, AppState.wallets.system)
-                            font.pixelSize: 10
+                            font.pixelSize: Theme.fontMicro
                             color: Theme.textSecondary
                         }
                     }
@@ -104,19 +104,19 @@ Item {
 
                 // Daily allowance card
                 Rectangle {
-                    width: (parent.width - 10) / 2
-                    height: 100
+                    width: (parent.width - units.gu(1.2)) / 2
+                    height: units.gu(13)
                     radius: Theme.radiusCard
                     color: "#EDE9FE" // Soft lavender
 
                     Column {
                         anchors.fill: parent
-                        anchors.margins: 12
-                        spacing: 2
+                        anchors.margins: units.gu(1.6)
+                        spacing: units.gu(0.4)
 
                         Text {
                             text: "Daily Budget"
-                            font.pixelSize: 11
+                            font.pixelSize: Theme.fontSub
                             color: Theme.textSecondary
                         }
 
@@ -124,12 +124,12 @@ Item {
                             minor: Math.round(root.totalBudget / 30)
                             currency: AppState.wallets.system
                             colored: false
-                            font.pixelSize: 20
+                            font.pixelSize: Theme.fontTitle
                         }
 
                         Text {
                             text: "per day allowance"
-                            font.pixelSize: 10
+                            font.pixelSize: Theme.fontMicro
                             color: Theme.textSecondary
                         }
                     }
@@ -147,13 +147,13 @@ Item {
             // Category budget rows
             Column {
                 width: parent.width
-                spacing: 8
+                spacing: units.gu(1)
 
                 Repeater {
                     model: root.budgetStatuses
                     delegate: Rectangle {
                         width: parent.width
-                        height: 72
+                        height: units.gu(9.5)
                         radius: Theme.radiusCard
                         color: Theme.cardBackground
                         border.color: Theme.cardBorder
@@ -165,19 +165,19 @@ Item {
 
                         Row {
                             anchors.fill: parent
-                            anchors.margins: 12
-                            spacing: 12
+                            anchors.margins: units.gu(1.4)
+                            spacing: units.gu(1.4)
 
                             CategoryIcon {
                                 categoryId: modelData.budget.refId
-                                size: 44
+                                size: units.gu(5.5)
                                 anchors.verticalCenter: parent.verticalCenter
                             }
 
                             Column {
                                 anchors.verticalCenter: parent.verticalCenter
-                                width: parent.width - 56 - amountCol.width - 12
-                                spacing: 4
+                                width: parent.width - units.gu(7) - amountCol.width - units.gu(1.5)
+                                spacing: units.gu(0.5)
 
                                 Text {
                                     text: AppState.categoryName(modelData.budget.refId)
@@ -189,13 +189,13 @@ Item {
                                 // Progress bar
                                 Rectangle {
                                     width: parent.width
-                                    height: 6
-                                    radius: 3
+                                    height: units.gu(0.8)
+                                    radius: height / 2
                                     color: "#F3F4F6"
 
                                     Rectangle {
                                         height: parent.height
-                                        radius: 3
+                                        radius: height / 2
                                         width: {
                                             if (modelData.budget.value <= 0) return 0;
                                             var pct = modelData.spentMinor / modelData.budget.value;
@@ -219,7 +219,7 @@ Item {
                             Column {
                                 id: amountCol
                                 anchors.verticalCenter: parent.verticalCenter
-                                spacing: 2
+                                spacing: units.gu(0.2)
 
                                 Text {
                                     anchors.right: parent.right
@@ -231,7 +231,7 @@ Item {
                                 Text {
                                     anchors.right: parent.right
                                     text: "per month"
-                                    font.pixelSize: 10
+                                    font.pixelSize: Theme.fontMicro
                                     color: Theme.textMuted
                                 }
                             }
@@ -242,14 +242,14 @@ Item {
                 // Empty / All categories setup
                 Rectangle {
                     width: parent.width
-                    height: 90
+                    height: units.gu(11)
                     radius: Theme.radiusCard
                     color: Theme.cardBackground
                     visible: root.budgetStatuses.length === 0
 
                     Column {
                         anchors.centerIn: parent
-                        spacing: 6
+                        spacing: units.gu(0.6)
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
                             text: "No category budgets set"
@@ -281,15 +281,15 @@ Item {
 
         Rectangle {
             anchors.centerIn: parent
-            width: Math.min(parent.width - 48, 360)
-            height: 220
+            width: Math.min(parent.width - units.gu(4), units.gu(42))
+            height: units.gu(26)
             radius: Theme.radiusCard
             color: Theme.cardBackground
 
             Column {
                 anchors.fill: parent
-                anchors.margins: 16
-                spacing: 12
+                anchors.margins: units.gu(2)
+                spacing: units.gu(1.5)
 
                 Text {
                     text: root.editingBudget ? "Set Budget: " + AppState.categoryName(root.editingBudget.refId) : "New Budget"
@@ -309,7 +309,7 @@ Item {
 
                 Row {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    spacing: 12
+                    spacing: units.gu(1.5)
 
                     Button {
                         text: "Cancel"
@@ -384,6 +384,7 @@ Item {
     }
 
     Component.onCompleted: loadBudgets()
+
     Connections {
         target: AppState
         function onTxChanged() { root.loadBudgets(); }

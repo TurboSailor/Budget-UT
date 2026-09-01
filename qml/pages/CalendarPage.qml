@@ -18,21 +18,21 @@ Item {
 
     Flickable {
         anchors.fill: parent
-        contentHeight: col.height + 40
+        contentHeight: col.height + units.gu(6)
         clip: true
 
         Column {
             id: col
-            width: Math.min(parent.width - 24, 520)
+            width: parent.width - units.gu(3)
             anchors.horizontalCenter: parent.horizontalCenter
-            spacing: 12
+            spacing: units.gu(1.5)
 
-            Item { width: 1; height: 4 } // Top spacer
+            Item { width: 1; height: units.gu(0.5) } // Top spacer
 
             // Month Header
             Row {
                 width: parent.width
-                height: 36
+                height: units.gu(4.5)
 
                 Text {
                     text: "Calendar"
@@ -42,19 +42,19 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                 }
 
-                Item { width: parent.width - 200; height: 1 }
+                Item { width: parent.width - units.gu(26); height: 1 }
 
                 Row {
-                    spacing: 12
+                    spacing: units.gu(1.2)
                     anchors.verticalCenter: parent.verticalCenter
 
                     Text {
                         text: "◀"
-                        font.pixelSize: 14
+                        font.pixelSize: units.dp(14)
                         color: Theme.textSecondary
                         MouseArea {
                             anchors.fill: parent
-                            anchors.margins: -8
+                            anchors.margins: -units.gu(0.8)
                             onClicked: root.shiftMonth(-1)
                         }
                     }
@@ -68,11 +68,11 @@ Item {
 
                     Text {
                         text: "▶"
-                        font.pixelSize: 14
+                        font.pixelSize: units.dp(14)
                         color: Theme.textSecondary
                         MouseArea {
                             anchors.fill: parent
-                            anchors.margins: -8
+                            anchors.margins: -units.gu(0.8)
                             onClicked: root.shiftMonth(1)
                         }
                     }
@@ -82,26 +82,26 @@ Item {
             // Month Calendar Card
             Rectangle {
                 width: parent.width
-                height: 300
+                height: units.gu(36)
                 radius: Theme.radiusCard
                 color: Theme.cardBackground
                 border.color: Theme.cardBorder
 
                 Column {
                     anchors.fill: parent
-                    anchors.margins: 10
-                    spacing: 4
+                    anchors.margins: units.gu(1.2)
+                    spacing: units.gu(0.5)
 
                     // Weekday header row
                     Row {
                         width: parent.width
-                        height: 24
+                        height: units.gu(3)
                         Repeater {
                             model: ["S", "M", "T", "W", "T", "F", "S"]
                             delegate: Text {
                                 width: parent.width / 7
                                 text: modelData
-                                font.pixelSize: 11
+                                font.pixelSize: Theme.fontMicro
                                 font.bold: true
                                 color: Theme.textMuted
                                 horizontalAlignment: Text.AlignHCenter
@@ -113,14 +113,14 @@ Item {
                     Grid {
                         width: parent.width
                         columns: 7
-                        spacing: 2
+                        spacing: units.gu(0.3)
 
                         Repeater {
                             model: root.buildMonthCells()
                             delegate: Rectangle {
-                                width: (parent.width - 12) / 7
-                                height: 38
-                                radius: 8
+                                width: (parent.width - units.gu(2)) / 7
+                                height: units.gu(4.6)
+                                radius: units.gu(0.8)
                                 color: {
                                     if (modelData.day === root.selectedDay) return Theme.primary
                                     if (modelData.isToday) return "#FEF3C7"
@@ -129,12 +129,12 @@ Item {
 
                                 Column {
                                     anchors.centerIn: parent
-                                    spacing: 1
+                                    spacing: units.gu(0.2)
 
                                     Text {
                                         anchors.horizontalCenter: parent.horizontalCenter
                                         text: modelData.dayNum
-                                        font.pixelSize: 11
+                                        font.pixelSize: Theme.fontSub
                                         font.bold: modelData.day === root.selectedDay || modelData.isToday
                                         color: modelData.inMonth ? Theme.textPrimary : Theme.textMuted
                                     }
@@ -142,9 +142,9 @@ Item {
                                     // Dot indicator for transactions
                                     Rectangle {
                                         anchors.horizontalCenter: parent.horizontalCenter
-                                        width: 4
-                                        height: 4
-                                        radius: 2
+                                        width: units.gu(0.6)
+                                        height: units.gu(0.6)
+                                        radius: width / 2
                                         color: modelData.hasExpense ? Theme.expense : (modelData.hasIncome ? Theme.income : "transparent")
                                         visible: modelData.hasTx
                                     }
@@ -168,7 +168,7 @@ Item {
             // Selected Day Summary
             Row {
                 width: parent.width
-                height: 28
+                height: units.gu(3.5)
 
                 Text {
                     text: root.selectedDay === AppState.todayDay ? "Today (" + root.selectedDay + ")" : root.selectedDay
@@ -176,11 +176,11 @@ Item {
                     font.bold: true
                     color: Theme.textPrimary
                     anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width - 160
+                    width: parent.width - units.gu(20)
                 }
 
                 Row {
-                    spacing: 10
+                    spacing: units.gu(1.2)
                     anchors.verticalCenter: parent.verticalCenter
                     Text {
                         text: "-" + AppState.formatMoney(root.dayExpense, AppState.wallets.system)
@@ -202,7 +202,7 @@ Item {
             // Day's transaction list
             Column {
                 width: parent.width
-                spacing: 0
+                spacing: units.gu(0.4)
 
                 Repeater {
                     model: root.dayTransactions
@@ -215,7 +215,7 @@ Item {
 
                 Rectangle {
                     width: parent.width
-                    height: 60
+                    height: units.gu(8)
                     radius: Theme.radiusCard
                     color: Theme.cardBackground
                     visible: root.dayTransactions.length === 0

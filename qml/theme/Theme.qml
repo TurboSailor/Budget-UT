@@ -1,9 +1,11 @@
 pragma Singleton
 import QtQuick 2.4
+import Ubuntu.Components 1.3
 
 // Theme mirrors the iOS Budget App design language:
 // Clean light canvas, white rounded cards with subtle borders,
 // yellow primary accent (FEDB5A), distinct per-category colors.
+// Uses Ubuntu.Components units.gu / units.dp for proper DPI scaling on phones.
 QtObject {
     // Canvas colors
     readonly property color background: "#F5F6FA"
@@ -33,19 +35,27 @@ QtObject {
         "#4ECDC4", "#FFD166", "#06D6A0", "#118AB2"
     ]
 
-    // Typography
-    readonly property int fontTitleLarge: 28
-    readonly property int fontTitle: 22
-    readonly property int fontHeading: 17
-    readonly property int fontBody: 14
-    readonly property int fontSub: 12
-    readonly property int fontMicro: 10
+    // Geometry / Rhythm with Grid Units (adapts to device DPI)
+    readonly property real xs: units.gu(0.5)
+    readonly property real s: units.gu(1)
+    readonly property real m: units.gu(1.5)
+    readonly property real l: units.gu(2)
+    readonly property real xl: units.gu(3)
 
-    // Geometry
-    readonly property int radiusSmall: 8
-    readonly property int radiusCard: 14
-    readonly property int radiusPill: 20
-    readonly property int paddingSmall: 8
-    readonly property int paddingMedium: 14
-    readonly property int paddingLarge: 20
+    readonly property real radiusSmall: units.gu(1)
+    readonly property real radiusCard: units.gu(1.8)
+    readonly property real radiusPill: units.gu(2.5)
+
+    readonly property real paddingSmall: units.gu(1)
+    readonly property real paddingMedium: units.gu(1.5)
+    readonly property real paddingLarge: units.gu(2)
+
+    // Typography (using units.dp for crisp legible text on all phone displays)
+    readonly property int fontHero: units.dp(34)
+    readonly property int fontTitleLarge: units.dp(26)
+    readonly property int fontTitle: units.dp(21)
+    readonly property int fontHeading: units.dp(16)
+    readonly property int fontBody: units.dp(14)
+    readonly property int fontSub: units.dp(12)
+    readonly property int fontMicro: units.dp(10)
 }

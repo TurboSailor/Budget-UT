@@ -1,4 +1,5 @@
 import QtQuick 2.4
+import Ubuntu.Components 1.3
 import "../theme"
 import "../store"
 
@@ -8,8 +9,8 @@ Item {
     signal tabSelected(int index)
     signal addClicked()
 
-    height: 60
-    implicitWidth: 360
+    height: units.gu(7.5)
+    implicitWidth: units.gu(45)
 
     // White background card with top border
     Rectangle {
@@ -37,9 +38,9 @@ Item {
             color: "transparent"
             Column {
                 anchors.centerIn: parent
-                spacing: 2
-                Text { text: "🏠"; font.pixelSize: 18; opacity: root.currentTab === 0 ? 1.0 : 0.4; anchors.horizontalCenter: parent.horizontalCenter }
-                Text { text: "Home"; font.pixelSize: 10; font.bold: root.currentTab === 0; color: root.currentTab === 0 ? Theme.textPrimary : Theme.textSecondary; anchors.horizontalCenter: parent.horizontalCenter }
+                spacing: units.gu(0.2)
+                Text { text: "🏠"; font.pixelSize: units.dp(20); opacity: root.currentTab === 0 ? 1.0 : 0.4; anchors.horizontalCenter: parent.horizontalCenter }
+                Text { text: "Home"; font.pixelSize: Theme.fontMicro; font.bold: root.currentTab === 0; color: root.currentTab === 0 ? Theme.textPrimary : Theme.textSecondary; anchors.horizontalCenter: parent.horizontalCenter }
             }
             MouseArea { anchors.fill: parent; onClicked: root.tabSelected(0) }
         }
@@ -51,9 +52,9 @@ Item {
             color: "transparent"
             Column {
                 anchors.centerIn: parent
-                spacing: 2
-                Text { text: "📅"; font.pixelSize: 18; opacity: root.currentTab === 1 ? 1.0 : 0.4; anchors.horizontalCenter: parent.horizontalCenter }
-                Text { text: "Calendar"; font.pixelSize: 10; font.bold: root.currentTab === 1; color: root.currentTab === 1 ? Theme.textPrimary : Theme.textSecondary; anchors.horizontalCenter: parent.horizontalCenter }
+                spacing: units.gu(0.2)
+                Text { text: "📅"; font.pixelSize: units.dp(20); opacity: root.currentTab === 1 ? 1.0 : 0.4; anchors.horizontalCenter: parent.horizontalCenter }
+                Text { text: "Calendar"; font.pixelSize: Theme.fontMicro; font.bold: root.currentTab === 1; color: root.currentTab === 1 ? Theme.textPrimary : Theme.textSecondary; anchors.horizontalCenter: parent.horizontalCenter }
             }
             MouseArea { anchors.fill: parent; onClicked: root.tabSelected(1) }
         }
@@ -71,9 +72,9 @@ Item {
             color: "transparent"
             Column {
                 anchors.centerIn: parent
-                spacing: 2
-                Text { text: "🎯"; font.pixelSize: 18; opacity: root.currentTab === 2 ? 1.0 : 0.4; anchors.horizontalCenter: parent.horizontalCenter }
-                Text { text: "Budget"; font.pixelSize: 10; font.bold: root.currentTab === 2; color: root.currentTab === 2 ? Theme.textPrimary : Theme.textSecondary; anchors.horizontalCenter: parent.horizontalCenter }
+                spacing: units.gu(0.2)
+                Text { text: "🎯"; font.pixelSize: units.dp(20); opacity: root.currentTab === 2 ? 1.0 : 0.4; anchors.horizontalCenter: parent.horizontalCenter }
+                Text { text: "Budget"; font.pixelSize: Theme.fontMicro; font.bold: root.currentTab === 2; color: root.currentTab === 2 ? Theme.textPrimary : Theme.textSecondary; anchors.horizontalCenter: parent.horizontalCenter }
             }
             MouseArea { anchors.fill: parent; onClicked: root.tabSelected(2) }
         }
@@ -85,9 +86,9 @@ Item {
             color: "transparent"
             Column {
                 anchors.centerIn: parent
-                spacing: 2
-                Text { text: "💳"; font.pixelSize: 18; opacity: root.currentTab === 3 ? 1.0 : 0.4; anchors.horizontalCenter: parent.horizontalCenter }
-                Text { text: "Cards"; font.pixelSize: 10; font.bold: root.currentTab === 3; color: root.currentTab === 3 ? Theme.textPrimary : Theme.textSecondary; anchors.horizontalCenter: parent.horizontalCenter }
+                spacing: units.gu(0.2)
+                Text { text: "💳"; font.pixelSize: units.dp(20); opacity: root.currentTab === 3 ? 1.0 : 0.4; anchors.horizontalCenter: parent.horizontalCenter }
+                Text { text: "Cards"; font.pixelSize: Theme.fontMicro; font.bold: root.currentTab === 3; color: root.currentTab === 3 ? Theme.textPrimary : Theme.textSecondary; anchors.horizontalCenter: parent.horizontalCenter }
             }
             MouseArea { anchors.fill: parent; onClicked: root.tabSelected(3) }
         }
@@ -98,9 +99,9 @@ Item {
         id: fab
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.verticalCenter: parent.top
-        width: 52
-        height: 52
-        radius: 26
+        width: units.gu(6.2)
+        height: units.gu(6.2)
+        radius: width / 2
         color: Theme.primary
         border.color: Theme.primaryDark
         border.width: 1
@@ -108,7 +109,7 @@ Item {
         Text {
             anchors.centerIn: parent
             text: "+"
-            font.pixelSize: 28
+            font.pixelSize: units.dp(30)
             font.bold: true
             color: Theme.primaryText
         }

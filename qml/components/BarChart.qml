@@ -1,4 +1,5 @@
 import QtQuick 2.4
+import Ubuntu.Components 1.3
 import "../theme"
 import "../store"
 
@@ -8,13 +9,13 @@ Item {
     property string selectedDay: AppState.selectedDay
     signal barClicked(string day)
 
-    implicitHeight: 140
-    implicitWidth: 320
+    implicitHeight: units.gu(18)
+    implicitWidth: units.gu(40)
 
     Canvas {
         id: canvas
         anchors.fill: parent
-        anchors.margins: 6
+        anchors.margins: units.gu(0.8)
 
         onPaint: {
             var ctx = getContext("2d");
@@ -22,7 +23,7 @@ Item {
 
             if (!root.days || root.days.length === 0) {
                 ctx.fillStyle = Theme.textMuted;
-                ctx.font = "12px sans-serif";
+                ctx.font = Math.round(units.dp(12)) + "px sans-serif";
                 ctx.textAlign = "center";
                 ctx.fillText("No transactions in this period", width / 2, height / 2);
                 return;
@@ -35,24 +36,24 @@ Item {
                 if (v > maxVal) maxVal = v;
             }
 
-            var labelH = 22;
-            var chartH = height - labelH - 10;
+            var labelH = units.gu(2.8);
+            var chartH = height - labelH - units.gu(1);
             var colW = width / n;
-            var barW = Math.max(3, Math.min(18, colW * 0.65));
+            var barW = Math.max(units.gu(0.4), Math.min(units.gu(2.2), colW * 0.65));
 
             for (var i = 0; i < n; i++) {
                 var d = root.days[i];
                 var exp = d.expenseMinor || 0;
                 var x = i * colW + (colW - barW) / 2;
-                var h = (exp / maxVal) * (chartH - 8);
-                if (h < 3 && exp > 0) h = 3;
+                var h = (exp / maxVal) * (chartH - units.gu(1));
+                if (h < units.gu(0.4) && exp > 0) h = units.gu(0.4);
                 var y = chartH - h;
 
                 var isSelected = (d.day === root.selectedDay);
 
                 // Background track
                 ctx.fillStyle = isSelected ? "#F3E8FF" : "#F3F4F6";
-                drawRoundedRect(ctx, x, 4, barW, chartH - 4, barW / 2);
+                drawRoundedRect(ctx, x, units.gu(0.5), barW, chartH - units.gu(0.5), barW / 2);
 
                 // Bar fill
                 if (exp > 0) {
@@ -60,12 +61,12 @@ Item {
                     drawRoundedRect(ctx, x, y, barW, h, barW / 2);
                 }
 
-                // Label (day number or weekday)
+                // Label (day number)
                 var dayNum = d.day ? d.day.substring(d.day.length - 2) : "";
                 ctx.fillStyle = isSelected ? Theme.accent : Theme.textSecondary;
-                ctx.font = isSelected ? "bold 10px sans-serif" : "10px sans-serif";
+                ctx.font = (isSelected ? "bold " : "") + Math.round(units.dp(10)) + "px sans-serif";
                 ctx.textAlign = "center";
-                ctx.fillText(dayNum, x + barW / 2, height - 4);
+                ctx.fillText(dayNum, x + barW / 2, height - units.gu(0.4));
             }
         }
 

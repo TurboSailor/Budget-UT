@@ -12,16 +12,16 @@ Item {
 
     Flickable {
         anchors.fill: parent
-        contentHeight: col.height + 40
+        contentHeight: col.height + units.gu(6)
         clip: true
 
         Column {
             id: col
-            width: Math.min(parent.width - 24, 520)
+            width: parent.width - units.gu(3)
             anchors.horizontalCenter: parent.horizontalCenter
-            spacing: 12
+            spacing: units.gu(1.5)
 
-            Item { width: 1; height: 4 } // Top spacer
+            Item { width: 1; height: units.gu(0.5) } // Top spacer
 
             Text {
                 text: "Settings"
@@ -33,25 +33,25 @@ Item {
             // Pro Unlocked Banner
             Rectangle {
                 width: parent.width
-                height: 70
+                height: units.gu(9.5)
                 radius: Theme.radiusCard
                 color: "#FEF3C7" // Soft gold
                 border.color: Theme.primaryDark
 
                 Row {
                     anchors.fill: parent
-                    anchors.margins: 12
-                    spacing: 12
+                    anchors.margins: units.gu(1.6)
+                    spacing: units.gu(1.6)
 
                     Text {
                         text: "👑"
-                        font.pixelSize: 28
+                        font.pixelSize: units.dp(30)
                         anchors.verticalCenter: parent.verticalCenter
                     }
 
                     Column {
                         anchors.verticalCenter: parent.verticalCenter
-                        spacing: 2
+                        spacing: units.gu(0.3)
                         Text {
                             text: "All Premium Features Free"
                             font.pixelSize: Theme.fontHeading
@@ -70,15 +70,15 @@ Item {
             // General Settings Card
             Rectangle {
                 width: parent.width
-                height: 120
+                height: units.gu(14)
                 radius: Theme.radiusCard
                 color: Theme.cardBackground
                 border.color: Theme.cardBorder
 
                 Column {
                     anchors.fill: parent
-                    anchors.margins: 14
-                    spacing: 10
+                    anchors.margins: units.gu(1.8)
+                    spacing: units.gu(1.2)
 
                     Text {
                         text: "General"
@@ -89,30 +89,30 @@ Item {
 
                     Row {
                         width: parent.width
-                        height: 36
+                        height: units.gu(4.5)
                         Text {
                             text: "Main Currency"
                             font.pixelSize: Theme.fontBody
                             color: Theme.textPrimary
                             anchors.verticalCenter: parent.verticalCenter
-                            width: parent.width - 160
+                            width: parent.width - units.gu(22)
                         }
 
                         // Currency selector chips
                         Row {
-                            spacing: 4
+                            spacing: units.gu(0.6)
                             anchors.verticalCenter: parent.verticalCenter
                             Repeater {
                                 model: ["USD", "EUR", "RUB", "CNY"]
                                 delegate: Rectangle {
-                                    width: 34
-                                    height: 26
-                                    radius: 13
+                                    width: units.gu(4.8)
+                                    height: units.gu(3.6)
+                                    radius: height / 2
                                     color: AppState.wallets.system === modelData ? Theme.primary : "#F3F4F6"
                                     Text {
                                         anchors.centerIn: parent
                                         text: modelData
-                                        font.pixelSize: 10
+                                        font.pixelSize: Theme.fontMicro
                                         font.bold: AppState.wallets.system === modelData
                                         color: Theme.textPrimary
                                     }
@@ -134,15 +134,15 @@ Item {
             // Data Management Card (Import / Export)
             Rectangle {
                 width: parent.width
-                height: 260
+                height: units.gu(32)
                 radius: Theme.radiusCard
                 color: Theme.cardBackground
                 border.color: Theme.cardBorder
 
                 Column {
                     anchors.fill: parent
-                    anchors.margins: 14
-                    spacing: 12
+                    anchors.margins: units.gu(1.8)
+                    spacing: units.gu(1.4)
 
                     Text {
                         text: "Backup & Restore"
@@ -154,7 +154,7 @@ Item {
                     // Import bundle path
                     Column {
                         width: parent.width
-                        spacing: 4
+                        spacing: units.gu(0.5)
                         Text {
                             text: "Import JSON Bundle (converted Realm backup):"
                             font.pixelSize: Theme.fontSub
@@ -169,35 +169,35 @@ Item {
                     }
 
                     Row {
-                        spacing: 10
+                        spacing: units.gu(1.2)
                         width: parent.width
 
                         Button {
-                            width: (parent.width - 10) / 2
+                            width: (parent.width - units.gu(1.2)) / 2
                             text: "Import Bundle"
                             color: Theme.primary
                             onClicked: root.doImportBundle()
                         }
 
                         Button {
-                            width: (parent.width - 10) / 2
+                            width: (parent.width - units.gu(1.2)) / 2
                             text: "Export Bundle"
                             onClicked: root.doExportBundle()
                         }
                     }
 
                     Row {
-                        spacing: 10
+                        spacing: units.gu(1.2)
                         width: parent.width
 
                         Button {
-                            width: (parent.width - 10) / 2
+                            width: (parent.width - units.gu(1.2)) / 2
                             text: "Export CSV"
                             onClicked: root.doExportCSV()
                         }
 
                         Button {
-                            width: (parent.width - 10) / 2
+                            width: (parent.width - units.gu(1.2)) / 2
                             text: "Import CSV"
                             onClicked: root.doImportCSV()
                         }
@@ -215,15 +215,15 @@ Item {
             // About Card
             Rectangle {
                 width: parent.width
-                height: 100
+                height: units.gu(12)
                 radius: Theme.radiusCard
                 color: Theme.cardBackground
                 border.color: Theme.cardBorder
 
                 Column {
                     anchors.fill: parent
-                    anchors.margins: 14
-                    spacing: 4
+                    anchors.margins: units.gu(1.8)
+                    spacing: units.gu(0.5)
 
                     Text {
                         text: "About Budget"
@@ -240,7 +240,7 @@ Item {
 
                     Text {
                         text: "Daemon: http://127.0.0.1:21990 • SQLite"
-                        font.pixelSize: Theme.fontSub
+                        font.pixelSize: Theme.fontMicro
                         color: Theme.textMuted
                     }
                 }

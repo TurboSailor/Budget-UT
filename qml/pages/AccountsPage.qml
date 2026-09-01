@@ -16,21 +16,21 @@ Item {
 
     Flickable {
         anchors.fill: parent
-        contentHeight: col.height + 40
+        contentHeight: col.height + units.gu(6)
         clip: true
 
         Column {
             id: col
-            width: Math.min(parent.width - 24, 520)
+            width: parent.width - units.gu(3)
             anchors.horizontalCenter: parent.horizontalCenter
-            spacing: 12
+            spacing: units.gu(1.5)
 
-            Item { width: 1; height: 4 } // Top spacer
+            Item { width: 1; height: units.gu(0.5) } // Top spacer
 
             // Header: Title + Add
             Row {
                 width: parent.width
-                height: 36
+                height: units.gu(4.5)
 
                 Text {
                     text: "Accounts"
@@ -40,19 +40,19 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                 }
 
-                Item { width: parent.width - 180; height: 1 }
+                Item { width: parent.width - units.gu(18); height: 1 }
 
                 Rectangle {
-                    width: 32
-                    height: 32
-                    radius: 16
+                    width: units.gu(4)
+                    height: units.gu(4)
+                    radius: width / 2
                     color: Theme.primary
                     anchors.verticalCenter: parent.verticalCenter
 
                     Text {
                         anchors.centerIn: parent
                         text: "+"
-                        font.pixelSize: 20
+                        font.pixelSize: units.dp(24)
                         font.bold: true
                         color: Theme.primaryText
                     }
@@ -66,15 +66,15 @@ Item {
             // Total Net Worth Card
             Rectangle {
                 width: parent.width
-                height: 100
+                height: units.gu(13)
                 radius: Theme.radiusCard
                 color: Theme.cardBackground
                 border.color: Theme.cardBorder
 
                 Column {
                     anchors.fill: parent
-                    anchors.margins: 14
-                    spacing: 4
+                    anchors.margins: units.gu(1.8)
+                    spacing: units.gu(0.5)
 
                     Text {
                         text: "Net Assets"
@@ -86,12 +86,12 @@ Item {
                         minor: AppState.wallets.totalMinor
                         currency: AppState.wallets.system
                         colored: false
-                        font.pixelSize: Theme.fontTitleLarge
+                        font.pixelSize: Theme.fontHero
                     }
 
                     Text {
                         text: "Converted to " + (AppState.wallets.system || "USD")
-                        font.pixelSize: 10
+                        font.pixelSize: Theme.fontMicro
                         color: Theme.textMuted
                     }
                 }
@@ -102,7 +102,7 @@ Item {
                 model: root.buildGroupedSections()
                 delegate: Column {
                     width: parent.width
-                    spacing: 6
+                    spacing: units.gu(0.8)
 
                     Text {
                         text: modelData.groupName
@@ -113,41 +113,41 @@ Item {
 
                     Column {
                         width: parent.width
-                        spacing: 6
+                        spacing: units.gu(0.8)
 
                         Repeater {
                             model: modelData.accounts
                             delegate: Rectangle {
                                 width: parent.width
-                                height: 60
+                                height: units.gu(7.5)
                                 radius: Theme.radiusCard
                                 color: Theme.cardBackground
                                 border.color: Theme.cardBorder
 
                                 Row {
                                     anchors.fill: parent
-                                    anchors.margins: 12
-                                    spacing: 12
+                                    anchors.margins: units.gu(1.2)
+                                    spacing: units.gu(1.4)
 
                                     // Account colored pill / icon
                                     Rectangle {
-                                        width: 36
-                                        height: 36
-                                        radius: 18
+                                        width: units.gu(4.8)
+                                        height: units.gu(4.8)
+                                        radius: width / 2
                                         color: modelData.color ? (modelData.color.indexOf("#") === 0 ? modelData.color : "#" + modelData.color) : Theme.primary
                                         anchors.verticalCenter: parent.verticalCenter
 
                                         Text {
                                             anchors.centerIn: parent
                                             text: modelData.kind === 2 ? "📊" : (modelData.kind === 1 ? "💳" : "💵")
-                                            font.pixelSize: 16
+                                            font.pixelSize: units.dp(18)
                                         }
                                     }
 
                                     Column {
                                         anchors.verticalCenter: parent.verticalCenter
-                                        width: parent.width - 48 - balCol.width - 12
-                                        spacing: 2
+                                        width: parent.width - units.gu(6) - balCol.width - units.gu(2)
+                                        spacing: units.gu(0.3)
 
                                         Text {
                                             text: modelData.name
@@ -168,7 +168,7 @@ Item {
                                     Column {
                                         id: balCol
                                         anchors.verticalCenter: parent.verticalCenter
-                                        spacing: 2
+                                        spacing: units.gu(0.2)
 
                                         Text {
                                             anchors.right: parent.right
@@ -181,7 +181,7 @@ Item {
                                         Text {
                                             anchors.right: parent.right
                                             text: modelData.currency
-                                            font.pixelSize: 10
+                                            font.pixelSize: Theme.fontMicro
                                             color: Theme.textMuted
                                         }
                                     }
@@ -207,15 +207,15 @@ Item {
 
         Rectangle {
             anchors.centerIn: parent
-            width: Math.min(parent.width - 32, 380)
-            height: 320
+            width: Math.min(parent.width - units.gu(4), units.gu(42))
+            height: units.gu(36)
             radius: Theme.radiusCard
             color: Theme.cardBackground
 
             Column {
                 anchors.fill: parent
-                anchors.margins: 16
-                spacing: 10
+                anchors.margins: units.gu(2)
+                spacing: units.gu(1.4)
 
                 Text {
                     text: "Add Account"
@@ -251,7 +251,7 @@ Item {
 
                 Row {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    spacing: 12
+                    spacing: units.gu(1.5)
 
                     Button {
                         text: "Cancel"

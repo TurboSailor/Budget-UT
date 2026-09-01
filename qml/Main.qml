@@ -22,7 +22,7 @@ MainView {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        height: 28
+        height: units.gu(4)
         color: "#FEE2E2"
         visible: !AppState.connected && AppState.lastError.length > 0
         z: 10
@@ -30,7 +30,7 @@ MainView {
         Text {
             anchors.centerIn: parent
             text: "Connecting to budget daemon..."
-            font.pixelSize: 11
+            font.pixelSize: Theme.fontSub
             color: Theme.expense
         }
     }

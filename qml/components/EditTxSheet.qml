@@ -44,7 +44,7 @@ Rectangle {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        height: Math.min(parent.height * 0.92, 640)
+        height: Math.min(parent.height * 0.94, units.gu(78))
         radius: Theme.radiusCard
         color: Theme.cardBackground
 
@@ -54,19 +54,19 @@ Rectangle {
             anchors.top: parent.top
             anchors.left: parent.left
             anchors.right: parent.right
-            height: 50
+            height: units.gu(6)
             color: "transparent"
 
             Text {
                 anchors.left: parent.left
-                anchors.leftMargin: 16
+                anchors.leftMargin: units.gu(2)
                 anchors.verticalCenter: parent.verticalCenter
                 text: "Cancel"
                 font.pixelSize: Theme.fontBody
                 color: Theme.textSecondary
                 MouseArea {
                     anchors.fill: parent
-                    anchors.margins: -8
+                    anchors.margins: -units.gu(1)
                     onClicked: root.close()
                 }
             }
@@ -81,7 +81,7 @@ Rectangle {
 
             Text {
                 anchors.right: parent.right
-                anchors.rightMargin: 16
+                anchors.rightMargin: units.gu(2)
                 anchors.verticalCenter: parent.verticalCenter
                 text: "Save"
                 font.pixelSize: Theme.fontHeading
@@ -89,7 +89,7 @@ Rectangle {
                 color: Theme.accent
                 MouseArea {
                     anchors.fill: parent
-                    anchors.margins: -8
+                    anchors.margins: -units.gu(1)
                     onClicked: root.save()
                 }
             }
@@ -100,9 +100,9 @@ Rectangle {
             id: kindBar
             anchors.top: header.bottom
             anchors.horizontalCenter: parent.horizontalCenter
-            width: parent.width - 32
-            height: 36
-            radius: 18
+            width: parent.width - units.gu(4)
+            height: units.gu(4.5)
+            radius: height / 2
             color: "#EEF0F5"
 
             Row {
@@ -117,13 +117,13 @@ Rectangle {
                         property bool active: root.kind === modelData.idx
                         width: parent.width / 3
                         height: parent.height
-                        radius: 18
+                        radius: height / 2
                         color: active ? Theme.cardBackground : "transparent"
 
                         Text {
                             anchors.centerIn: parent
                             text: modelData.text
-                            font.pixelSize: 12
+                            font.pixelSize: Theme.fontSub
                             font.bold: active
                             color: active ? Theme.textPrimary : Theme.textSecondary
                         }
@@ -143,18 +143,18 @@ Rectangle {
         Rectangle {
             id: amountBox
             anchors.top: kindBar.bottom
-            anchors.topMargin: 8
+            anchors.topMargin: units.gu(1)
             anchors.left: parent.left
             anchors.right: parent.right
-            anchors.margins: 16
-            height: 52
+            anchors.margins: units.gu(2)
+            height: units.gu(6)
             color: "transparent"
 
             Text {
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
                 text: AppState.currencySymbol(root.accountCurrency())
-                font.pixelSize: 26
+                font.pixelSize: Theme.fontTitleLarge
                 font.bold: true
                 color: Theme.textSecondary
             }
@@ -163,7 +163,7 @@ Rectangle {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.amountStr
-                font.pixelSize: 32
+                font.pixelSize: Theme.fontHero
                 font.bold: true
                 color: root.kind === 2 ? Theme.income : (root.kind === 1 ? Theme.transfer : Theme.expense)
             }
@@ -176,19 +176,19 @@ Rectangle {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: numpad.top
-            anchors.margins: 8
-            contentHeight: bodyCol.height + 10
+            anchors.margins: units.gu(1)
+            contentHeight: bodyCol.height + units.gu(2)
             clip: true
 
             Column {
                 id: bodyCol
                 width: parent.width
-                spacing: 10
+                spacing: units.gu(1.2)
 
                 // Accounts row
-                Item { width: 1; height: 2 }
+                Item { width: 1; height: units.gu(0.2) }
                 Row {
-                    Item { width: 8; height: 1 }
+                    Item { width: units.gu(1); height: 1 }
                     Text {
                         text: root.kind === 1 ? "From Account:" : "Account:"
                         font.pixelSize: Theme.fontSub
@@ -197,23 +197,23 @@ Rectangle {
                 }
 
                 Row {
-                    Item { width: 8; height: 1 }
+                    Item { width: units.gu(1); height: 1 }
                     Flow {
-                        width: bodyCol.width - 16
-                        spacing: 6
+                        width: bodyCol.width - units.gu(2)
+                        spacing: units.gu(0.8)
                         Repeater {
                             model: AppState.accounts
                             delegate: Rectangle {
-                                height: 28
-                                width: accLabel.width + 20
-                                radius: 14
+                                height: units.gu(3.6)
+                                width: accLabel.width + units.gu(2.4)
+                                radius: height / 2
                                 color: root.selectedAccId === modelData.id ? Theme.primary : "#F3F4F6"
                                 border.color: root.selectedAccId === modelData.id ? Theme.primaryDark : "transparent"
                                 Text {
                                     id: accLabel
                                     anchors.centerIn: parent
                                     text: modelData.name + " (" + modelData.currency + ")"
-                                    font.pixelSize: 11
+                                    font.pixelSize: Theme.fontSub
                                     font.bold: root.selectedAccId === modelData.id
                                     color: Theme.textPrimary
                                 }
@@ -234,9 +234,9 @@ Rectangle {
                     Column {
                         id: toCol
                         width: parent.width
-                        spacing: 4
+                        spacing: units.gu(0.6)
                         Row {
-                            Item { width: 8; height: 1 }
+                            Item { width: units.gu(1); height: 1 }
                             Text {
                                 text: "To Account:"
                                 font.pixelSize: Theme.fontSub
@@ -244,22 +244,22 @@ Rectangle {
                             }
                         }
                         Row {
-                            Item { width: 8; height: 1 }
+                            Item { width: units.gu(1); height: 1 }
                             Flow {
-                                width: bodyCol.width - 16
-                                spacing: 6
+                                width: bodyCol.width - units.gu(2)
+                                spacing: units.gu(0.8)
                                 Repeater {
                                     model: AppState.accounts
                                     delegate: Rectangle {
-                                        height: 28
-                                        width: toAccLabel.width + 20
-                                        radius: 14
+                                        height: units.gu(3.6)
+                                        width: toAccLabel.width + units.gu(2.4)
+                                        radius: height / 2
                                         color: root.selectedToAccId === modelData.id ? Theme.accent : "#F3F4F6"
                                         Text {
                                             id: toAccLabel
                                             anchors.centerIn: parent
                                             text: modelData.name
-                                            font.pixelSize: 11
+                                            font.pixelSize: Theme.fontSub
                                             font.bold: root.selectedToAccId === modelData.id
                                             color: root.selectedToAccId === modelData.id ? "#FFFFFF" : Theme.textPrimary
                                         }
@@ -282,9 +282,9 @@ Rectangle {
                     Column {
                         id: catCol
                         width: parent.width
-                        spacing: 6
+                        spacing: units.gu(0.8)
                         Row {
-                            Item { width: 8; height: 1 }
+                            Item { width: units.gu(1); height: 1 }
                             Text {
                                 text: "Category:"
                                 font.pixelSize: Theme.fontSub
@@ -292,21 +292,21 @@ Rectangle {
                             }
                         }
                         Row {
-                            Item { width: 8; height: 1 }
+                            Item { width: units.gu(1); height: 1 }
                             Grid {
-                                width: bodyCol.width - 16
+                                width: bodyCol.width - units.gu(2)
                                 columns: 4
-                                spacing: 8
+                                spacing: units.gu(1)
                                 Repeater {
                                     model: root.filteredCategories()
                                     delegate: Column {
-                                        width: (bodyCol.width - 40) / 4
-                                        spacing: 4
+                                        width: (bodyCol.width - units.gu(5)) / 4
+                                        spacing: units.gu(0.4)
                                         Rectangle {
                                             anchors.horizontalCenter: parent.horizontalCenter
-                                            width: 44
-                                            height: 44
-                                            radius: 22
+                                            width: units.gu(5.6)
+                                            height: units.gu(5.6)
+                                            radius: width / 2
                                             color: root.selectedCatId === modelData.id ? (modelData.color ? (modelData.color.indexOf("#") === 0 ? modelData.color : "#" + modelData.color) : Theme.primary) : "#F3F4F6"
                                             border.color: root.selectedCatId === modelData.id ? Theme.textPrimary : "transparent"
                                             border.width: root.selectedCatId === modelData.id ? 2 : 0
@@ -314,7 +314,7 @@ Rectangle {
                                             Text {
                                                 anchors.centerIn: parent
                                                 text: AppState.categoryGlyph(modelData.icon, modelData.name)
-                                                font.pixelSize: 20
+                                                font.pixelSize: units.dp(22)
                                             }
                                             MouseArea {
                                                 anchors.fill: parent
@@ -327,7 +327,7 @@ Rectangle {
                                         Text {
                                             anchors.horizontalCenter: parent.horizontalCenter
                                             text: modelData.name
-                                            font.pixelSize: 10
+                                            font.pixelSize: Theme.fontMicro
                                             elide: Text.ElideRight
                                             width: parent.width
                                             horizontalAlignment: Text.AlignHCenter
@@ -349,9 +349,9 @@ Rectangle {
                     Column {
                         id: subCol
                         width: parent.width
-                        spacing: 4
+                        spacing: units.gu(0.6)
                         Row {
-                            Item { width: 8; height: 1 }
+                            Item { width: units.gu(1); height: 1 }
                             Text {
                                 text: "Subcategory:"
                                 font.pixelSize: Theme.fontSub
@@ -359,22 +359,22 @@ Rectangle {
                             }
                         }
                         Row {
-                            Item { width: 8; height: 1 }
+                            Item { width: units.gu(1); height: 1 }
                             Flow {
-                                width: bodyCol.width - 16
-                                spacing: 6
+                                width: bodyCol.width - units.gu(2)
+                                spacing: units.gu(0.8)
                                 Repeater {
                                     model: root.currentSubcategories()
                                     delegate: Rectangle {
-                                        height: 26
-                                        width: subLabel.width + 16
-                                        radius: 13
+                                        height: units.gu(3.2)
+                                        width: subLabel.width + units.gu(2)
+                                        radius: height / 2
                                         color: root.selectedSubId === modelData.id ? Theme.primary : "#F3F4F6"
                                         Text {
                                             id: subLabel
                                             anchors.centerIn: parent
                                             text: modelData.name
-                                            font.pixelSize: 10
+                                            font.pixelSize: Theme.fontMicro
                                             font.bold: root.selectedSubId === modelData.id
                                             color: Theme.textPrimary
                                         }
@@ -391,27 +391,27 @@ Rectangle {
 
                 // Note / Remark row
                 Row {
-                    width: parent.width - 16
+                    width: parent.width - units.gu(2)
                     anchors.horizontalCenter: parent.horizontalCenter
-                    spacing: 8
+                    spacing: units.gu(1)
 
                     TextField {
                         id: noteInput
-                        width: parent.width - 90
+                        width: parent.width - units.gu(12)
                         placeholderText: "Note / Merchant..."
                         text: root.labelText
                         onTextChanged: root.labelText = text
                     }
 
                     Rectangle {
-                        width: 80
+                        width: units.gu(11)
                         height: noteInput.height
                         radius: Theme.radiusSmall
                         color: "#F3F4F6"
                         Text {
                             anchors.centerIn: parent
                             text: root.txDay === AppState.todayDay ? "Today" : root.txDay.substring(5)
-                            font.pixelSize: 11
+                            font.pixelSize: Theme.fontSub
                             color: Theme.textPrimary
                         }
                     }
@@ -419,9 +419,9 @@ Rectangle {
 
                 // Delete button for editing
                 Rectangle {
-                    width: parent.width - 32
+                    width: parent.width - units.gu(4)
                     anchors.horizontalCenter: parent.horizontalCenter
-                    height: 36
+                    height: units.gu(4.5)
                     radius: Theme.radiusSmall
                     color: "#FEE2E2"
                     visible: root.tx !== null
@@ -447,16 +447,16 @@ Rectangle {
             anchors.bottom: parent.bottom
             anchors.left: parent.left
             anchors.right: parent.right
-            height: 180
+            height: units.gu(23)
             color: "#F8F9FB"
             border.color: Theme.cardBorder
             border.width: 1
 
             Grid {
                 anchors.fill: parent
-                anchors.margins: 4
+                anchors.margins: units.gu(0.6)
                 columns: 4
-                spacing: 4
+                spacing: units.gu(0.6)
 
                 Repeater {
                     model: [
@@ -478,9 +478,9 @@ Rectangle {
                         { t: "00", c: "#FFFFFF", act: "00" }
                     ]
                     delegate: Rectangle {
-                        width: (parent.width - 12) / 4
-                        height: (parent.height - 12) / 4
-                        radius: 6
+                        width: (parent.width - units.gu(1.8)) / 4
+                        height: (parent.height - units.gu(1.8)) / 4
+                        radius: units.gu(0.8)
                         color: keyMouse.pressed ? "#D1D5DB" : modelData.c
                         border.color: "#E5E7EB"
                         border.width: 1
@@ -488,7 +488,7 @@ Rectangle {
                         Text {
                             anchors.centerIn: parent
                             text: modelData.t
-                            font.pixelSize: 18
+                            font.pixelSize: units.dp(22)
                             font.bold: true
                             color: Theme.textPrimary
                         }

@@ -1,4 +1,5 @@
 import QtQuick 2.4
+import Ubuntu.Components 1.3
 import "../theme"
 import "../store"
 
@@ -8,7 +9,7 @@ Item {
     property string iconName: ""
     property string label: ""
     property color customColor: "transparent"
-    property int size: 40
+    property real size: units.gu(5)
 
     width: size
     height: size
@@ -28,7 +29,7 @@ Item {
                 var c = AppState.categoryById(categoryId);
                 return AppState.categoryGlyph(iconName || (c ? c.icon : ""), label || (c ? c.name : ""));
             }
-            font.pixelSize: Math.max(12, root.size * 0.45)
+            font.pixelSize: Math.max(units.dp(16), root.size * 0.45)
             color: "#1A1A1A"
         }
     }

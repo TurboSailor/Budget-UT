@@ -1,4 +1,5 @@
 import QtQuick 2.4
+import Ubuntu.Components 1.3
 import "../theme"
 import "../store"
 
@@ -7,8 +8,8 @@ Rectangle {
     property var tx: null
     signal clicked()
 
-    width: parent ? parent.width : 300
-    height: 64
+    width: parent ? parent.width : units.gu(40)
+    height: units.gu(8)
     color: mouseArea.pressed ? "#F9FAFB" : Theme.cardBackground
     radius: Theme.radiusSmall
 
@@ -20,21 +21,21 @@ Rectangle {
 
     Row {
         anchors.fill: parent
-        anchors.margins: 10
-        spacing: 12
+        anchors.margins: units.gu(1.2)
+        spacing: units.gu(1.4)
 
         CategoryIcon {
             id: icon
             anchors.verticalCenter: parent.verticalCenter
             categoryId: root.tx ? (root.tx.categoryId || "") : ""
             label: root.tx ? (root.tx.label || "") : ""
-            size: 44
+            size: units.gu(5.5)
         }
 
         Column {
             anchors.verticalCenter: parent.verticalCenter
-            width: parent.width - icon.width - amountLabel.width - 36
-            spacing: 2
+            width: parent.width - icon.width - amountLabel.width - units.gu(4)
+            spacing: units.gu(0.4)
 
             Text {
                 width: parent.width
@@ -90,7 +91,7 @@ Rectangle {
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.leftMargin: 66
+        anchors.leftMargin: units.gu(8)
         height: 1
         color: Theme.divider
     }
