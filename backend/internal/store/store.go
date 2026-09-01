@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -66,6 +67,11 @@ CREATE TABLE IF NOT EXISTS recurring(
 CREATE TABLE IF NOT EXISTS currencies(
   code TEXT PRIMARY KEY, symbol TEXT DEFAULT '', name TEXT DEFAULT '',
   country TEXT DEFAULT '', rate REAL DEFAULT 1, in_use INTEGER DEFAULT 0);
+CREATE TABLE IF NOT EXISTS account_logs(
+  id TEXT PRIMARY KEY, account_id TEXT NOT NULL, ts_ms INTEGER NOT NULL, day TEXT NOT NULL,
+  kind INTEGER DEFAULT 0, delta INTEGER DEFAULT 0, balance_after INTEGER DEFAULT 0,
+  currency TEXT DEFAULT '', note TEXT DEFAULT '', tx_id TEXT DEFAULT '');
+CREATE INDEX IF NOT EXISTS idx_alog_account ON account_logs(account_id, ts_ms);
 `
 
 // Store wraps the DB; all handlers run under one mutex — SQLite for a single
@@ -94,9 +100,14 @@ func (s *Store) Close() error { return s.db.Close() }
 func (s *Store) Setting(key, def string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.settingLocked(key, def)
+}
+
+// settingLocked is the caller-holds-s.mu variant, so code already inside the
+// lock (the balance/log path) can resolve settings without deadlocking.
+func (s *Store) settingLocked(key, def string) string {
 	var v string
-	err := s.db.QueryRow(`SELECT value FROM settings WHERE key=?`, key).Scan(&v)
-	if err != nil {
+	if err := s.db.QueryRow(`SELECT value FROM settings WHERE key=?`, key).Scan(&v); err != nil {
 		return def
 	}
 	return v
@@ -131,15 +142,19 @@ func (s *Store) AllSettings() (map[string]string, error) {
 
 // Zone returns the user timezone from settings (default +03:00 like the
 // source data).
-func (s *Store) Zone() *time.Location {
-	spec := s.Setting("tz", "+03:00")
+func (s *Store) Zone() *time.Location { return parseZone(s.Setting("tz", "+03:00")) }
+
+// zoneLocked is Zone for code that already holds s.mu.
+func (s *Store) zoneLocked() *time.Location { return parseZone(s.settingLocked("tz", "+03:00")) }
+
+func parseZone(spec string) *time.Location {
 	if loc, err := time.LoadLocation(spec); err == nil {
 		return loc
 	}
 	if off, err := strconv.Atoi(spec); err == nil {
 		return time.FixedZone(spec, off*3600)
 	}
-	if strings.HasPrefix(spec, "+") || strings.HasPrefix(spec, "-") {
+	if len(spec) >= 5 && (strings.HasPrefix(spec, "+") || strings.HasPrefix(spec, "-")) {
 		h, err1 := strconv.Atoi(spec[1:3])
 		m, err2 := strconv.Atoi(spec[3:5])
 		if err1 == nil && err2 == nil {
@@ -194,6 +209,11 @@ func (s *Store) Accounts() ([]*model.Account, error) {
 func (s *Store) Account(id string) (*model.Account, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.accountLocked(id)
+}
+
+// accountLocked is Account for code that already holds s.mu.
+func (s *Store) accountLocked(id string) (*model.Account, error) {
 	row := s.db.QueryRow(`SELECT `+acctCols+` FROM accounts WHERE id=?`, id)
 	a, err := scanAccount(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -226,6 +246,145 @@ func (s *Store) DeleteAccount(id string) error {
 	}
 	_, err := s.db.Exec(`UPDATE transactions SET status=1 WHERE account_id=? OR to_account_id=?`, id, id)
 	return err
+}
+
+// ---- account change log ----
+
+const alogCols = `id, account_id, ts_ms, day, kind, delta, balance_after, currency, note, tx_id`
+
+// AccountLogs returns an account's change history, newest first.
+func (s *Store) AccountLogs(accountID string, limit int) ([]model.AccountLog, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	rows, err := s.db.Query(`SELECT `+alogCols+` FROM account_logs WHERE account_id=?
+		ORDER BY ts_ms DESC, id DESC LIMIT ?`, accountID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []model.AccountLog{}
+	for rows.Next() {
+		var l model.AccountLog
+		var acct string
+		if err := rows.Scan(&l.ID, &acct, &l.TsMs, &l.Day, &l.Kind, &l.Delta,
+			&l.BalanceAfter, &l.Currency, &l.Note, &l.TxID); err != nil {
+			return nil, err
+		}
+		out = append(out, l)
+	}
+	return out, rows.Err()
+}
+
+// AdjustAccount corrects a balance by hand. Exactly one of newBalance (absolute
+// target) or delta (relative shift) must be given; the balance write and the
+// kind=0 log row happen under one lock, so the logged balanceAfter is exact.
+func (s *Store) AdjustAccount(accountID string, newBalance *int64, delta *int64, note string) (*model.Account, *model.AccountLog, error) {
+	if (newBalance == nil) == (delta == nil) {
+		return nil, nil, errors.New("adjust: exactly one of newBalance or delta is required")
+	}
+	if note == "" {
+		note = "Manual adjustment"
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var cur int64
+	if err := s.db.QueryRow(`SELECT balance FROM accounts WHERE id=?`, accountID).Scan(&cur); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil, fmt.Errorf("account %s not found", accountID)
+		}
+		return nil, nil, err
+	}
+	var d int64
+	if newBalance != nil {
+		d = *newBalance - cur
+	} else {
+		d = *delta
+	}
+	if _, err := s.db.Exec(`UPDATE accounts SET balance = balance + ? WHERE id=?`, d, accountID); err != nil {
+		return nil, nil, err
+	}
+	l, err := s.appendAccountLogLocked(accountID, model.LogManual, d, note, "")
+	if err != nil {
+		return nil, nil, err
+	}
+	a, err := s.accountLocked(accountID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return a, l, nil
+}
+
+// appendAccountLogLocked records one history row. The caller MUST already hold
+// s.mu and MUST have written the balance already: the post-change balance and
+// the currency are read back with plain SQL (never via a locking Store method).
+func (s *Store) appendAccountLogLocked(accountID string, kind int, delta int64, note, txID string) (*model.AccountLog, error) {
+	if accountID == "" {
+		return nil, nil
+	}
+	var bal int64
+	var currency string
+	err := s.db.QueryRow(`SELECT balance, currency FROM accounts WHERE id=?`, accountID).Scan(&bal, &currency)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil // account vanished; nothing worth logging
+	}
+	if err != nil {
+		return nil, err
+	}
+	l := &model.AccountLog{
+		ID: newLogID(), TsMs: time.Now().UnixMilli(), Kind: kind,
+		Delta: delta, BalanceAfter: bal, Currency: currency, Note: note, TxID: txID,
+	}
+	l.Day = time.UnixMilli(l.TsMs).In(s.zoneLocked()).Format("2006-01-02")
+	if _, err := s.db.Exec(`INSERT INTO account_logs(`+alogCols+`) VALUES(?,?,?,?,?,?,?,?,?,?)`,
+		l.ID, accountID, l.TsMs, l.Day, l.Kind, l.Delta, l.BalanceAfter,
+		l.Currency, l.Note, l.TxID); err != nil {
+		return nil, err
+	}
+	return l, nil
+}
+
+// InsertAccountLogRaw writes a history row verbatim (importer only): no balance
+// is touched and the timestamps come from the bundle.
+func (s *Store) InsertAccountLogRaw(accountID string, l *model.AccountLog) error {
+	if l.ID == "" {
+		l.ID = newLogID()
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, err := s.db.Exec(`INSERT OR REPLACE INTO account_logs(`+alogCols+`)
+		VALUES(?,?,?,?,?,?,?,?,?,?)`,
+		l.ID, accountID, l.TsMs, l.Day, l.Kind, l.Delta, l.BalanceAfter,
+		l.Currency, l.Note, l.TxID)
+	return err
+}
+
+// AllAccountLogs returns every history row oldest first (exporter only).
+func (s *Store) AllAccountLogs() (map[string][]model.AccountLog, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	rows, err := s.db.Query(`SELECT ` + alogCols + ` FROM account_logs ORDER BY ts_ms, id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string][]model.AccountLog{}
+	for rows.Next() {
+		var l model.AccountLog
+		var acct string
+		if err := rows.Scan(&l.ID, &acct, &l.TsMs, &l.Day, &l.Kind, &l.Delta,
+			&l.BalanceAfter, &l.Currency, &l.Note, &l.TxID); err != nil {
+			return nil, err
+		}
+		out[acct] = append(out[acct], l)
+	}
+	return out, rows.Err()
 }
 
 func (s *Store) Groups() ([]model.Group, error) {
@@ -600,6 +759,14 @@ func np(v sql.NullString) *string {
 func NewID() string {
 	now := time.Now().UnixMilli()
 	return fmt.Sprintf("%d%d", now, now%9973%1000)
+}
+
+// logSeq keeps account_logs ids unique: NewID() is a pure function of the
+// current millisecond, and a single transfer writes two rows back to back.
+var logSeq atomic.Uint64
+
+func newLogID() string {
+	return fmt.Sprintf("%d%04d", time.Now().UnixMilli(), logSeq.Add(1)%10000)
 }
 
 // Wipe deletes every row of a table (importer only).

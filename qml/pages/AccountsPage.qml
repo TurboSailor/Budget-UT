@@ -121,8 +121,14 @@ Item {
                                 width: parent.width
                                 height: units.gu(7.5)
                                 radius: Theme.radiusCard
-                                color: Theme.cardBackground
+                                color: rowMouse.pressed ? "#F9FAFB" : Theme.cardBackground
                                 border.color: Theme.cardBorder
+
+                                MouseArea {
+                                    id: rowMouse
+                                    anchors.fill: parent
+                                    onClicked: accountSheet.open(modelData)
+                                }
 
                                 Row {
                                     anchors.fill: parent
@@ -304,6 +310,14 @@ Item {
         }
         return sections;
     }
+    // Account card: balance correction + change history
+    AccountSheet {
+        id: accountSheet
+        anchors.fill: parent
+        z: 90
+        onChanged: AppState.reload()
+    }
+
 
     function createAccount() {
         if (!newName || newName.trim().length === 0) return;

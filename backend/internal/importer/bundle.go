@@ -351,6 +351,61 @@ func ImportBundle(st *store.Store, path string) (map[string]int, error) {
 		counts["transactions"]++
 	}
 
+	// account change history: one "Opening balance" row per account (so a fresh
+	// card is never empty) plus the Realm AccountBalanceChangeLog rows.
+	created := map[string]int64{}
+	for _, cls := range []string{"Account2", "Account3"} {
+		for _, r := range rows(&b, cls) {
+			created[str(r, "id")] = ms(r, "createDate")
+		}
+	}
+	accts, err := st.Accounts()
+	if err != nil {
+		return counts, err
+	}
+	for _, a := range accts {
+		ts := created[a.ID]
+		l := &model.AccountLog{
+			ID: "open:" + a.ID, TsMs: ts,
+			Day:  time.UnixMilli(ts).In(zone).Format("2006-01-02"),
+			Kind: model.LogSnapshot, Delta: a.Balance, BalanceAfter: a.Balance,
+			Currency: a.Currency, Note: "Opening balance",
+		}
+		if err := st.InsertAccountLogRaw(a.ID, l); err != nil {
+			return counts, err
+		}
+		counts["accountLogs"]++
+	}
+	for _, r := range rows(&b, "AccountBalanceChangeLog") {
+		acct := str(r, "relatedAccountId")
+		if acct == "" {
+			continue
+		}
+		tsKey := "transactionDate"
+		if str(r, tsKey) == "" {
+			tsKey = "createDate"
+		}
+		ts := ms(r, tsKey)
+		// Realm keeps the magnitude in `amount` and the direction in
+		// `transactionType` (-1 out, 1 in); account_logs.delta is signed.
+		delta := minor(num(r, "amount"))
+		if integer(r, "transactionType") < 0 {
+			delta = -delta
+		}
+		l := &model.AccountLog{
+			ID: str(r, "id"), TsMs: ts,
+			Day:  time.UnixMilli(ts).In(zone).Format("2006-01-02"),
+			Kind: model.LogSnapshot, Delta: delta,
+			BalanceAfter: minor(num(r, "balanceAfterChange")),
+			Currency:     firstNonEmpty(str(r, "currencyCode"), sysCur),
+			Note:         "Imported", TxID: str(r, "transactionId"),
+		}
+		if err := st.InsertAccountLogRaw(acct, l); err != nil {
+			return counts, err
+		}
+		counts["accountLogs"]++
+	}
+
 	// currencies
 	for _, r := range rows(&b, "Country") {
 		if err := st.SaveCurrency(model.Currency{
@@ -434,8 +489,9 @@ func normHex(h string) string {
 }
 
 func wipeAll(st *store.Store) {
-	for _, t := range []string{"transactions", "budgets", "subcategories", "categories",
-		"account_groups", "accounts", "bills", "currencies", "recurring", "settings"} {
+	for _, t := range []string{"transactions", "account_logs", "budgets", "subcategories",
+		"categories", "account_groups", "accounts", "bills", "currencies", "recurring",
+		"settings"} {
 		st.Wipe(t)
 	}
 }

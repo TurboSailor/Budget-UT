@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"os"
+	"strings"
 	"time"
 
 	"budgetd/internal/model"
@@ -156,6 +157,33 @@ func ExportBundle(st *store.Store, path string) error {
 		}
 		for _, t := range more {
 			objs["Expend"] = append(objs["Expend"], expendRow(st, t, owner, ck))
+		}
+	}
+
+	// Account history. The synthetic "open:<id>" opening-balance rows are left
+	// out: the importer regenerates them from the account balance, so emitting
+	// them would only fight with its own row. Realm has no notion of *why* a
+	// balance moved, hence a re-import lands everything as kind=2 (snapshot).
+	logs, _ := st.AllAccountLogs()
+	for acct, items := range logs {
+		for _, l := range items {
+			if strings.HasPrefix(l.ID, "open:") {
+				continue
+			}
+			iso := time.UnixMilli(l.TsMs).UTC().Format(time.RFC3339Nano)
+			amount, ttype := float64(l.Delta)/100, 1
+			if l.Delta < 0 {
+				amount, ttype = -amount, -1
+			}
+			objs["AccountBalanceChangeLog"] = append(objs["AccountBalanceChangeLog"], map[string]any{
+				"compoundKey": ck("", l.ID), "id": l.ID, "owner": owner,
+				"createDate": iso, "modifyDate": iso, "syncInfo": nil,
+				"relatedAccountId": acct, "transactionId": l.TxID,
+				"transactionType": ttype, "amount": amount,
+				"currencyCode": l.Currency,
+				"balanceAfterChange": float64(l.BalanceAfter) / 100,
+				"transactionDate":    iso, "hasBoundRecordId": l.TxID != "",
+			})
 		}
 	}
 

@@ -21,12 +21,7 @@ Rectangle {
     property string labelText: ""
     property string remarkText: ""
 
-    // Calculator state: the source app lets you type "1200+340" straight into
-    // the amount field, so the pad is a real four-function calculator.
-    property string entry: "0"      // number currently being typed
-    property real acc: 0            // accumulated left-hand value
-    property string pendingOp: ""   // "+", "-", "*", "/"
-    property bool entryDirty: false // has a digit been typed into `entry` yet
+    // Calculator state now lives in the shared CalcKeypad below.
 
     color: "transparent"
     visible: visibleSheet
@@ -170,7 +165,9 @@ Rectangle {
             Text {
                 anchors.right: parent.right
                 anchors.top: parent.top
-                text: root.pendingOp !== "" ? (root.trimNum(root.acc) + " " + root.opGlyph(root.pendingOp)) : ""
+                text: keypad.pendingOp !== ""
+                      ? (keypad.trimNum(keypad.acc) + " " + keypad.opGlyph(keypad.pendingOp))
+                      : ""
                 font.pixelSize: Theme.fontSub
                 color: Theme.textMuted
             }
@@ -180,7 +177,7 @@ Rectangle {
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
                 anchors.bottomMargin: units.gu(0.5)
-                text: root.entry
+                text: keypad.entry
                 font.pixelSize: Theme.fontHero
                 font.bold: true
                 color: AppState.colorForKind(root.kind)
@@ -193,7 +190,7 @@ Rectangle {
             anchors.top: amountBox.bottom
             anchors.left: parent.left
             anchors.right: parent.right
-            anchors.bottom: numpad.top
+            anchors.bottom: keypad.top
             anchors.margins: units.gu(1)
             contentHeight: bodyCol.height + units.gu(2)
             clip: true
@@ -426,12 +423,31 @@ Rectangle {
                         width: units.gu(11)
                         height: noteInput.height
                         radius: Theme.radiusSmall
-                        color: "#F3F4F6"
-                        Text {
+                        color: dateMouse.pressed ? Theme.divider : "#F3F4F6"
+                        border.color: Theme.cardBorder
+
+                        Column {
                             anchors.centerIn: parent
-                            text: root.txDay === AppState.todayDay ? "Today" : root.txDay.substring(5)
-                            font.pixelSize: Theme.fontSub
-                            color: Theme.textPrimary
+                            spacing: units.gu(0.1)
+                            Text {
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                text: root.txDay === AppState.todayDay ? "Today" : root.txDay.substring(5)
+                                font.pixelSize: Theme.fontSub
+                                font.bold: true
+                                color: Theme.textPrimary
+                            }
+                            Text {
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                text: "change"
+                                font.pixelSize: Theme.fontMicro
+                                color: Theme.textMuted
+                            }
+                        }
+
+                        MouseArea {
+                            id: dateMouse
+                            anchors.fill: parent
+                            onClicked: datePicker.open(root.txDay)
                         }
                     }
                 }
@@ -460,169 +476,27 @@ Rectangle {
             }
         }
 
-        // Calculator numpad
-        Rectangle {
-            id: numpad
+        // Shared calculator keypad; this sheet renders its own amount display
+        // above, so the keypad's built-in one stays off.
+        CalcKeypad {
+            id: keypad
             anchors.bottom: parent.bottom
             anchors.left: parent.left
             anchors.right: parent.right
-            height: units.gu(26)
-            color: "#F8F9FB"
-            border.color: Theme.cardBorder
-            border.width: 1
-
-            Grid {
-                anchors.fill: parent
-                anchors.margins: units.gu(0.6)
-                columns: 5
-                spacing: units.gu(0.6)
-
-                Repeater {
-                    model: [
-                        { t: "1",  a: "d" }, { t: "2", a: "d" }, { t: "3", a: "d" }, { t: "÷", a: "op", op: "/" }, { t: "⌫", a: "bk" },
-                        { t: "4",  a: "d" }, { t: "5", a: "d" }, { t: "6", a: "d" }, { t: "×", a: "op", op: "*" }, { t: "C",  a: "clr" },
-                        { t: "7",  a: "d" }, { t: "8", a: "d" }, { t: "9", a: "d" }, { t: "−", a: "op", op: "-" }, { t: "=",  a: "eq" },
-                        { t: ".",  a: "d" }, { t: "0", a: "d" }, { t: "00", a: "d00" }, { t: "+", a: "op", op: "+" }, { t: "✓", a: "save" }
-                    ]
-                    delegate: Rectangle {
-                        property bool isOp: modelData.a === "op" || modelData.a === "eq"
-                        property bool isSave: modelData.a === "save"
-                        width: (parent.width - units.gu(2.4)) / 5
-                        height: (parent.height - units.gu(1.8)) / 4
-                        radius: units.gu(0.8)
-                        color: {
-                            if (keyMouse.pressed) return "#D1D5DB"
-                            if (isSave) return Theme.primary
-                            if (isOp) return "#EEF0F5"
-                            if (modelData.a === "bk" || modelData.a === "clr") return "#E5E7EB"
-                            return "#FFFFFF"
-                        }
-                        border.color: "#E5E7EB"
-                        border.width: 1
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: modelData.t
-                            font.pixelSize: modelData.t === "00" ? units.dp(17) : units.dp(21)
-                            font.bold: true
-                            color: isOp ? Theme.accent : Theme.textPrimary
-                        }
-
-                        MouseArea {
-                            id: keyMouse
-                            anchors.fill: parent
-                            onClicked: {
-                                var a = modelData.a
-                                if (a === "d") root.appendDigit(modelData.t)
-                                else if (a === "d00") { root.appendDigit("0"); root.appendDigit("0") }
-                                else if (a === "op") root.applyOperator(modelData.op)
-                                else if (a === "eq") root.equals()
-                                else if (a === "bk") root.backspace()
-                                else if (a === "clr") root.clearAll()
-                                else if (a === "save") root.save()
-                            }
-                        }
-                    }
-                }
-            }
+            showDisplay: false
+            onSaveRequested: root.save()
         }
     }
 
-    // ---- calculator ----
-
-    function appendDigit(d) {
-        if (d === "." && entry.indexOf(".") >= 0) return
-        // A fresh operand (start, or right after an operator) replaces the "0".
-        if (!entryDirty && d !== ".") {
-            entry = d
-            entryDirty = true
-            return
-        }
-        if (entry === "0" && d !== ".") {
-            entry = d
-            entryDirty = true
-            return
-        }
-        var dot = entry.indexOf(".")
-        if (dot >= 0 && entry.length - dot > 2) return // max 2 decimals
-        if (entry.replace(".", "").length >= 12) return
-        entry += d
-        entryDirty = true
+    // Day chooser for back-dating a record.
+    DatePickerSheet {
+        id: datePicker
+        anchors.fill: parent
+        z: 50
+        onPicked: root.txDay = day
     }
 
-    function backspace() {
-        if (entry.length <= 1) {
-            entry = "0"
-            entryDirty = false
-            return
-        }
-        entry = entry.substring(0, entry.length - 1)
-    }
-
-    function clearAll() {
-        entry = "0"
-        acc = 0
-        pendingOp = ""
-        entryDirty = false
-    }
-
-    function compute(a, op, b) {
-        switch (op) {
-        case "+": return a + b
-        case "-": return a - b
-        case "*": return a * b
-        case "/": return b === 0 ? a : a / b
-        }
-        return b
-    }
-
-    // Chained input evaluates left to right, like a phone calculator:
-    // 100 + 50 × 2 = 300.
-    function applyOperator(op) {
-        var cur = parseFloat(entry) || 0
-        if (pendingOp !== "" && entryDirty) {
-            acc = compute(acc, pendingOp, cur)
-        } else if (pendingOp === "") {
-            acc = cur
-        }
-        pendingOp = op
-        entry = "0"
-        entryDirty = false
-    }
-
-    function equals() {
-        if (pendingOp === "") return
-        // Operator pressed but no second operand typed: keep the left side.
-        if (!entryDirty) {
-            pendingOp = ""
-            entry = trimNum(acc)
-            return
-        }
-        acc = compute(acc, pendingOp, parseFloat(entry) || 0)
-        pendingOp = ""
-        entry = trimNum(acc)
-        entryDirty = false
-    }
-
-    // resolve() folds any pending operation so Save always stores a number.
-    function resolve() {
-        var cur = parseFloat(entry) || 0
-        if (pendingOp !== "" && entryDirty) return compute(acc, pendingOp, cur)
-        if (pendingOp !== "") return acc
-        return cur
-    }
-
-    function trimNum(v) {
-        var r = Math.round(v * 100) / 100
-        return (r % 1 === 0) ? ("" + r) : r.toFixed(2)
-    }
-
-    function opGlyph(op) {
-        if (op === "*") return "×"
-        if (op === "/") return "÷"
-        if (op === "-") return "−"
-        return "+"
-    }
+    // Calculator lives in CalcKeypad (shared with the account balance editor).
 
     // ---- data helpers ----
 
@@ -653,11 +527,10 @@ Rectangle {
 
     function open(existing) {
         tx = existing || null
-        clearAll()
+        keypad.clearAll()
         if (tx) {
             kind = tx.kind
-            entry = trimNum((tx.originalCost || tx.amount) / 100)
-            entryDirty = true
+            keypad.setValue((tx.originalCost || tx.amount) / 100)
             selectedCatId = tx.categoryId || ""
             selectedSubId = tx.subcategoryId || ""
             selectedAccId = tx.accountId || ""
@@ -694,7 +567,7 @@ Rectangle {
     }
 
     function save() {
-        var val = resolve()
+        var val = keypad.value()
         if (!(val > 0)) {
             close()
             return

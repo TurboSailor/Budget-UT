@@ -251,14 +251,37 @@ func (s *Server) handleAccounts(w http.ResponseWriter, r *http.Request) {
 			errJSON(w, http.StatusInternalServerError, err)
 			return
 		}
+		s.logAccountBalance(&a, model.LogSnapshot, a.Balance, "Opening balance")
 		writeJSON(w, http.StatusCreated, a)
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
 }
 
+// handleAccountItem owns everything under /api/accounts/<id>: the bare item
+// (GET/PUT/DELETE) plus the two sub-resources /logs and /adjust.
 func (s *Server) handleAccountItem(w http.ResponseWriter, r *http.Request) {
-	id := strings.TrimPrefix(r.URL.Path, "/api/accounts/")
+	rest := strings.TrimPrefix(r.URL.Path, "/api/accounts/")
+	id, sub := rest, ""
+	if i := strings.IndexByte(rest, '/'); i >= 0 {
+		id, sub = rest[:i], strings.Trim(rest[i+1:], "/")
+	}
+	if id == "" {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	switch sub {
+	case "":
+	case "logs":
+		s.handleAccountLogs(w, r, id)
+		return
+	case "adjust":
+		s.handleAccountAdjust(w, r, id)
+		return
+	default:
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
 	switch r.Method {
 	case http.MethodGet:
 		a, err := s.st.Account(id)
@@ -274,9 +297,18 @@ func (s *Server) handleAccountItem(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		a.ID = id
+		// A PUT may carry a different balance; keep the history honest so the
+		// newest log row's balanceAfter always equals the account balance.
+		kind, delta, note := model.LogSnapshot, a.Balance, "Opening balance"
+		if old, err := s.st.Account(id); err == nil {
+			kind, delta, note = model.LogManual, a.Balance-old.Balance, "Manual adjustment"
+		}
 		if err := s.st.SaveAccount(&a); err != nil {
 			errJSON(w, http.StatusInternalServerError, err)
 			return
+		}
+		if kind != model.LogManual || delta != 0 {
+			s.logAccountBalance(&a, kind, delta, note)
 		}
 		writeJSON(w, http.StatusOK, a)
 	case http.MethodDelete:
@@ -288,6 +320,73 @@ func (s *Server) handleAccountItem(w http.ResponseWriter, r *http.Request) {
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
+}
+
+// logAccountBalance records a balance that was written straight into the
+// accounts row (create / PUT), so those paths keep the card history complete.
+// The "open:<id>" key makes the opening row idempotent per account.
+func (s *Server) logAccountBalance(a *model.Account, kind int, delta int64, note string) {
+	ts := time.Now().UnixMilli()
+	l := &model.AccountLog{
+		TsMs: ts, Day: time.UnixMilli(ts).In(s.st.Zone()).Format("2006-01-02"),
+		Kind: kind, Delta: delta, BalanceAfter: a.Balance,
+		Currency: a.Currency, Note: note,
+	}
+	if kind == model.LogSnapshot {
+		l.ID = "open:" + a.ID
+	}
+	_ = s.st.InsertAccountLogRaw(a.ID, l)
+}
+
+// handleAccountLogs serves the account change history, newest first.
+func (s *Server) handleAccountLogs(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	a, err := s.st.Account(id)
+	if err != nil {
+		errJSON(w, http.StatusNotFound, err)
+		return
+	}
+	items, err := s.st.AccountLogs(id, atoiDef(r.URL.Query().Get("limit"), 100))
+	if err != nil {
+		errJSON(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"accountId": a.ID,
+		"currency":  a.Currency,
+		"items":     items,
+	})
+}
+
+// handleAccountAdjust corrects a balance by hand: either an absolute
+// newBalance or a relative delta, both in minor units.
+func (s *Server) handleAccountAdjust(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method != http.MethodPost && r.Method != http.MethodPut {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		NewBalance *int64 `json:"newBalance"`
+		Delta      *int64 `json:"delta"`
+		Note       string `json:"note"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		errJSON(w, http.StatusBadRequest, err)
+		return
+	}
+	if (req.NewBalance == nil) == (req.Delta == nil) {
+		errJSON(w, http.StatusBadRequest, errors.New("provide exactly one of newBalance or delta"))
+		return
+	}
+	a, l, err := s.st.AdjustAccount(id, req.NewBalance, req.Delta, req.Note)
+	if err != nil {
+		errJSON(w, http.StatusBadRequest, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"account": a, "log": l})
 }
 
 func (s *Server) handleCategories(w http.ResponseWriter, r *http.Request) {

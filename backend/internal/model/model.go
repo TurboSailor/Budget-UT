@@ -14,6 +14,13 @@ const (
 	AcctCustom = 2
 )
 
+// account_logs.kind — what caused a balance change.
+const (
+	LogManual      = 0 // user corrected the balance by hand
+	LogTransaction = 1 // automatic effect of a transaction (create/edit/delete)
+	LogSnapshot    = 2 // initial / imported snapshot row
+)
+
 const (
 	PeriodDaily     = 0
 	PeriodWeekly    = 1
@@ -77,6 +84,21 @@ type Account struct {
 	Hidden       bool   `json:"hidden"`
 	Sorted       float64 `json:"sorted"`
 	Status       int    `json:"status"`
+}
+
+// AccountLog is one entry of an account's change history (table account_logs).
+// Delta is signed minor units (negative = money left the account); BalanceAfter
+// is the account balance right after this change.
+type AccountLog struct {
+	ID           string `json:"id"`
+	TsMs         int64  `json:"tsMs"`
+	Day          string `json:"day"`
+	Kind         int    `json:"kind"`
+	Delta        int64  `json:"delta"`
+	BalanceAfter int64  `json:"balanceAfter"`
+	Currency     string `json:"currency"`
+	Note         string `json:"note"`
+	TxID         string `json:"txId"`
 }
 
 type Group struct {

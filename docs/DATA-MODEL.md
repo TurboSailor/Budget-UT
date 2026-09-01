@@ -19,6 +19,9 @@ touch is defined here; do not diverge.
 - `tx.kind` (Realm `transferType`): `0` expense, `1` transfer, `2` income.
 - `account.kind`: `0` debit, `1` credit, `2` custom (funds/stock/crypto).
   `financesType` (custom only, Realm): `0` fund, `2` crypto/stock, `3` other.
+- `accountLog.kind`: `0` manual adjustment (user corrected the balance),
+  `1` transaction effect (create/edit/delete of a `Tx`), `2` initial/imported
+  snapshot (opening balance and the Realm `AccountBalanceChangeLog` rows).
 - `budget.period` (Realm `t_data.rawValue`): `0` daily, `1` weekly
   (Mon start), `2` biweekly, `3` monthly (calendar month), `4` quarterly,
   `5` yearly, `6` custom (`periodDays`).
@@ -41,6 +44,9 @@ touch is defined here; do not diverge.
              finances_type INT, code TEXT,
              in_assets INT, hidden INT, sorted REAL, status INT)
     account_groups(name TEXT PK, account_ids TEXT /*json array*/, sorted REAL)
+    account_logs(id TEXT PK, account_id TEXT, ts_ms INT, day TEXT,
+                 kind INT, delta INT, balance_after INT,
+                 currency TEXT, note TEXT, tx_id TEXT)   -- index (account_id, ts_ms)
     transactions(id TEXT PK, bill_id, ts_ms INT, day TEXT,
                  category_id TEXT, subcategory_id TEXT,
                  kind INT, is_income INT,
@@ -68,6 +74,36 @@ account(s) `balance` by `±original_cost` (income/expense) and
 `cacheAmount`/`cacheTotalValue` snapshots and then **replays** the same rule is
 NOT applied (balances are snapshots, like the original app).
 
+Account change log (`account_logs`, shown on the account card): every balance
+move leaves exactly one row per affected account, written inside the same lock
+as the balance write, so `balance_after` of the newest row always equals
+`accounts.balance`.
+
+- `delta` is **signed** minor units (negative = money left the account);
+  `balance_after` is the balance right after the change.
+- `kind=1` for transaction effects. Creating a Tx logs its delta, deleting or
+  editing one logs the compensating delta first (note prefixed `Reverted · `)
+  and then the new effect. `tx_id` carries the transaction id; the note reads
+  e.g. `Expense · Food & Drink`, `Income · Salary`, `Transfer out · <account>`,
+  `Transfer in · <account>`.
+- `kind=0` for manual corrections: `POST /api/accounts/{id}/adjust`, and also a
+  `PUT /api/accounts/{id}` that carries a different `balance`.
+- `kind=2` for snapshots: one `open:<accountId>` "Opening balance" row per
+  account (written by the importer and on account creation, so a fresh card is
+  never empty) plus the imported Realm `AccountBalanceChangeLog` rows. Realm
+  keeps the magnitude in `amount` and the direction in `transactionType`
+  (`-1` out, `+1` in), so the importer signs `delta` from `transactionType`.
+  Those imported rows carry `balance_after` verbatim from
+  `balanceAfterChange` — in the original backup that field is `0`, so do not
+  render it for imported rows.
+- The bundle exporter emits `account_logs` back as `AccountBalanceChangeLog`
+  (major units, ISO dates, `transactionType` from the sign of `delta`), minus
+  the synthetic `open:` rows which the importer regenerates from the balance.
+  Realm has no field for *why* a balance moved, so a round-trip lands every
+  row as `kind=2`.
+- The importer wipes `account_logs` together with the rest, so re-import and
+  `POST /api/reset` never duplicate history.
+
 ## REST API (127.0.0.1:21990, JSON everywhere)
 
 Envelope: objects directly; errors `{"error":"..."}` with 4xx/5xx.
@@ -87,6 +123,11 @@ Envelope: objects directly; errors `{"error":"..."}` with 4xx/5xx.
     DELETE /api/tx/{id}                 soft delete
     GET  /api/accounts / POST /api/accounts
     PUT/DELETE /api/accounts/{id}
+    GET  /api/accounts/{id}              -> Account
+    GET  /api/accounts/{id}/logs?limit=N -> {accountId, currency, items:[AccountLog]}
+                                           newest first, limit default 100, max 500
+    POST /api/accounts/{id}/adjust       body {newBalance|delta, note}
+                                        -> {account: Account, log: AccountLog}
     GET  /api/categories                -> [{..category, subcategories:[..]}]
     POST /api/categories, PUT/DELETE /api/categories/{id}
     POST /api/subcategories, PUT/DELETE /api/subcategories/{id}
@@ -107,6 +148,10 @@ Envelope: objects directly; errors `{"error":"..."}` with 4xx/5xx.
 originalCurrency, accountId, toAccountId, toAmount, categoryId, subcategoryId,
 label, remark, ignored, ignoreBudget, ignoreExpend, status, createdAt,
 modifiedAt}` — `amount*` fields are minor units.
+
+`AccountLog` JSON: `{id, tsMs, day, kind, delta, balanceAfter, currency, note,
+txId}` — `delta`/`balanceAfter` are minor units, `delta` signed. `txId` is `""`
+for manual and opening rows.
 
 ## Bundle format (`budget-ut/bundle1`)
 

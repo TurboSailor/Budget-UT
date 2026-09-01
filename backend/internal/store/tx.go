@@ -70,7 +70,7 @@ func (s *Store) InsertTx(t *model.Tx) error {
 		t.CreatedAt, t.ModifiedAt); err != nil {
 		return err
 	}
-	s.applyBalancesLocked(t, 1)
+	s.applyBalancesLocked(t, 1, true)
 	return nil
 }
 
@@ -122,12 +122,12 @@ func (s *Store) UpdateTx(id string, patch map[string]any) (*model.Tx, error) {
 	fresh.ID = old.ID
 	fresh.CreatedAt = old.CreatedAt
 	fresh.ModifiedAt = time.Now().UTC().Format(time.RFC3339)
-	fresh.Day = time.UnixMilli(fresh.TsMs).In(s.Zone()).Format("2006-01-02")
+	// zoneLocked, never Zone(): s.mu is held here and the mutex is not reentrant.
+	fresh.Day = time.UnixMilli(fresh.TsMs).In(s.zoneLocked()).Format("2006-01-02")
 	if fresh.BillID == "" {
 		fresh.BillID = old.BillID
 	}
 
-	s.applyBalancesLocked(old, -1)
 	if _, err := s.db.Exec(`UPDATE transactions SET
 		ts_ms=?, day=?, category_id=?, subcategory_id=?, kind=?, is_income=?,
 		amount=?, currency=?, original_cost=?, original_currency=?,
@@ -139,10 +139,12 @@ func (s *Store) UpdateTx(id string, patch map[string]any) (*model.Tx, error) {
 		pn(fresh.AccountID), pn(fresh.ToAccountID), fresh.ToAmount, fresh.Label, fresh.Remark,
 		b2i(fresh.Ignored), b2i(fresh.IgnoreBudget), b2i(fresh.IgnoreExpend), fresh.Status,
 		fresh.ModifiedAt, id); err != nil {
-		s.applyBalancesLocked(old, 1) // restore on failure
 		return nil, err
 	}
-	s.applyBalancesLocked(&fresh, 1)
+	// Balances and history move only once the row itself is stored, so a failed
+	// UPDATE can neither shift a balance nor leave a phantom log entry.
+	s.applyBalancesLocked(old, -1, true)
+	s.applyBalancesLocked(&fresh, 1, true)
 	return &fresh, nil
 }
 
@@ -161,37 +163,110 @@ func (s *Store) DeleteTx(id string) error {
 	if t.Status == model.StatusDeleted {
 		return nil
 	}
-	s.applyBalancesLocked(t, -1)
-	_, err = s.db.Exec(`UPDATE transactions SET status=1, modified_at=? WHERE id=?`,
-		time.Now().UTC().Format(time.RFC3339), id)
-	return err
+	if _, err := s.db.Exec(`UPDATE transactions SET status=1, modified_at=? WHERE id=?`,
+		time.Now().UTC().Format(time.RFC3339), id); err != nil {
+		return err
+	}
+	s.applyBalancesLocked(t, -1, true)
+	return nil
 }
 
-func (s *Store) applyBalancesLocked(t *model.Tx, dir int) {
+// applyBalancesLocked moves the affected account balances by ±dir and, when
+// history is asked for, appends a kind=1 log row per touched account. dir=-1
+// is the compensating direction (edit-old / delete), so its rows carry the
+// reverted note. history=false is for the internal rollback path, which must
+// not leave a trace of a change that never happened.
+func (s *Store) applyBalancesLocked(t *model.Tx, dir int, history bool) {
 	switch t.Kind {
 	case model.KindExpense:
 		if t.AccountID != nil {
-			s.bumpBalanceLocked(*t.AccountID, int64(-dir)*t.OriginalCost)
+			s.bumpBalanceLocked(*t.AccountID, int64(-dir)*t.OriginalCost, s.txNoteLocked(t, dir, false, history), t.ID)
 		}
 	case model.KindIncome:
 		if t.AccountID != nil {
-			s.bumpBalanceLocked(*t.AccountID, int64(dir)*t.OriginalCost)
+			s.bumpBalanceLocked(*t.AccountID, int64(dir)*t.OriginalCost, s.txNoteLocked(t, dir, false, history), t.ID)
 		}
 	case model.KindTransfer:
 		if t.AccountID != nil {
-			s.bumpBalanceLocked(*t.AccountID, int64(-dir)*t.OriginalCost)
+			s.bumpBalanceLocked(*t.AccountID, int64(-dir)*t.OriginalCost, s.txNoteLocked(t, dir, false, history), t.ID)
 		}
 		if t.ToAccountID != nil {
-			s.bumpBalanceLocked(*t.ToAccountID, int64(dir)*t.ToAmount)
+			s.bumpBalanceLocked(*t.ToAccountID, int64(dir)*t.ToAmount, s.txNoteLocked(t, dir, true, history), t.ID)
 		}
 	}
 }
 
-func (s *Store) bumpBalanceLocked(id string, delta int64) {
+// bumpBalanceLocked shifts one account balance. A non-empty note also records
+// the change in account_logs, right next to the balance write so the logged
+// balanceAfter can never drift.
+func (s *Store) bumpBalanceLocked(id string, delta int64, note, txID string) {
 	if delta == 0 {
 		return
 	}
-	_, _ = s.db.Exec(`UPDATE accounts SET balance = balance + ? WHERE id=?`, delta, id)
+	if _, err := s.db.Exec(`UPDATE accounts SET balance = balance + ? WHERE id=?`, delta, id); err != nil {
+		return
+	}
+	if note == "" {
+		return
+	}
+	_, _ = s.appendAccountLogLocked(id, model.LogTransaction, delta, note, txID)
+}
+
+// txNoteLocked builds the human note for a transaction-driven balance change.
+// `incoming` marks the receiving side of a transfer. Returns "" when no history
+// is wanted, which is what switches logging off in bumpBalanceLocked.
+func (s *Store) txNoteLocked(t *model.Tx, dir int, incoming, history bool) string {
+	if !history {
+		return ""
+	}
+	var note string
+	switch t.Kind {
+	case model.KindExpense:
+		note = joinNote("Expense", s.categoryNameLocked(t.CategoryID))
+	case model.KindIncome:
+		note = joinNote("Income", s.categoryNameLocked(t.CategoryID))
+	case model.KindTransfer:
+		if incoming {
+			note = joinNote("Transfer in", s.accountNameLocked(t.AccountID))
+		} else {
+			note = joinNote("Transfer out", s.accountNameLocked(t.ToAccountID))
+		}
+	default:
+		note = "Transaction"
+	}
+	if dir < 0 {
+		return "Reverted · " + note
+	}
+	return note
+}
+
+func joinNote(head, tail string) string {
+	if tail == "" {
+		return head
+	}
+	return head + " · " + tail
+}
+
+func (s *Store) categoryNameLocked(id *string) string {
+	if id == nil || *id == "" {
+		return ""
+	}
+	var name string
+	if err := s.db.QueryRow(`SELECT name FROM categories WHERE id=?`, *id).Scan(&name); err != nil {
+		return ""
+	}
+	return name
+}
+
+func (s *Store) accountNameLocked(id *string) string {
+	if id == nil || *id == "" {
+		return ""
+	}
+	var name string
+	if err := s.db.QueryRow(`SELECT name FROM accounts WHERE id=?`, *id).Scan(&name); err != nil {
+		return ""
+	}
+	return name
 }
 
 type TxFilter struct {
