@@ -1,0 +1,15 @@
+{
+    "name": "budget.turbosailor",
+    "version": "0.1.0",
+    "architecture": "arm64",
+    "framework": "ubuntu-sdk-20.04",
+    "maintainer": "TurboSailor <budget@localhost>",
+    "title": "Budget",
+    "description": "Budget planner & spending tracker: accounts, budgets, calendar and stats. Open-source, all features free.",
+    "hooks": {
+        "budget": {
+            "apparmor": "budget.apparmor",
+            "desktop": "budget.desktop"
+        }
+    }
+}

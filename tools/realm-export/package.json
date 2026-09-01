@@ -1,0 +1,11 @@
+{
+  "name": "realm-export",
+  "private": true,
+  "description": "Convert a Budget.realm backup into budget-bundle.json (host-side, once per backup)",
+  "scripts": {
+    "export": "node export.js"
+  },
+  "dependencies": {
+    "realm": "20.2.0"
+  }
+}

@@ -1,0 +1,12 @@
+.DS_Store
+build/
+backend/bin/
+tools/realm-export/node_modules/
+tools/realm-export/package-lock.json
+
+# private financial data — never commit
+Budget.realm
+*.realm
+tools/realm-export/budget-bundle.json
+*.db
+*.sqlite

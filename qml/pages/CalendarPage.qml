@@ -1,0 +1,316 @@
+import QtQuick 2.4
+import Ubuntu.Components 1.3
+import "../theme"
+import "../store"
+import "../components"
+import "../js/api.js" as Api
+
+Item {
+    id: root
+    signal editTxRequested(var tx)
+
+    property string currentMonth: AppState.selectedMonth
+    property string selectedDay: AppState.selectedDay
+    property var monthDaysMap: ({}) // day -> {expenseMinor, incomeMinor, count}
+    property var dayTransactions: []
+    property int dayExpense: 0
+    property int dayIncome: 0
+
+    Flickable {
+        anchors.fill: parent
+        contentHeight: col.height + 40
+        clip: true
+
+        Column {
+            id: col
+            width: Math.min(parent.width - 24, 520)
+            anchors.horizontalCenter: parent.horizontalCenter
+            spacing: 12
+            topPadding: 12
+
+            // Month Header
+            Row {
+                width: parent.width
+                height: 36
+
+                Text {
+                    text: "Calendar"
+                    font.pixelSize: Theme.fontTitle
+                    font.bold: true
+                    color: Theme.textPrimary
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                Item { width: parent.width - 200; height: 1 }
+
+                Row {
+                    spacing: 12
+                    anchors.verticalCenter: parent.verticalCenter
+
+                    Text {
+                        text: "◀"
+                        font.pixelSize: 14
+                        color: Theme.textSecondary
+                        MouseArea {
+                            anchors.fill: parent
+                            anchors.margins: -8
+                            onClicked: root.shiftMonth(-1)
+                        }
+                    }
+
+                    Text {
+                        text: root.monthTitle()
+                        font.pixelSize: Theme.fontHeading
+                        font.bold: true
+                        color: Theme.textPrimary
+                    }
+
+                    Text {
+                        text: "▶"
+                        font.pixelSize: 14
+                        color: Theme.textSecondary
+                        MouseArea {
+                            anchors.fill: parent
+                            anchors.margins: -8
+                            onClicked: root.shiftMonth(1)
+                        }
+                    }
+                }
+            }
+
+            // Month Calendar Card
+            Rectangle {
+                width: parent.width
+                height: 300
+                radius: Theme.radiusCard
+                color: Theme.cardBackground
+                border.color: Theme.cardBorder
+
+                Column {
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    spacing: 4
+
+                    // Weekday header row
+                    Row {
+                        width: parent.width
+                        height: 24
+                        Repeater {
+                            model: ["S", "M", "T", "W", "T", "F", "S"]
+                            delegate: Text {
+                                width: parent.width / 7
+                                text: modelData
+                                font.pixelSize: 11
+                                font.bold: true
+                                color: Theme.textMuted
+                                horizontalAlignment: Text.AlignHCenter
+                            }
+                        }
+                    }
+
+                    // 6x7 days grid
+                    Grid {
+                        width: parent.width
+                        columns: 7
+                        spacing: 2
+
+                        Repeater {
+                            model: root.buildMonthCells()
+                            delegate: Rectangle {
+                                width: (parent.width - 12) / 7
+                                height: 38
+                                radius: 8
+                                color: {
+                                    if (modelData.day === root.selectedDay) return Theme.primary;
+                                    if (modelData.isToday) return "#FEF3C7";
+                                    return "transparent";
+                                }
+
+                                Column {
+                                    anchors.centerIn: parent
+                                    spacing: 1
+
+                                    Text {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        text: modelData.dayNum
+                                        font.pixelSize: 11
+                                        font.bold: modelData.day === root.selectedDay || modelData.isToday
+                                        color: modelData.inMonth ? Theme.textPrimary : Theme.textMuted
+                                    }
+
+                                    // Dot indicator for transactions
+                                    Rectangle {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        width: 4
+                                        height: 4
+                                        radius: 2
+                                        color: modelData.hasExpense ? Theme.expense : (modelData.hasIncome ? Theme.income : "transparent")
+                                        visible: modelData.hasTx
+                                    }
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    enabled: modelData.inMonth
+                                    onClicked: {
+                                        root.selectedDay = modelData.day;
+                                        AppState.selectedDay = modelData.day;
+                                        root.loadDay();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Selected Day Summary
+            Row {
+                width: parent.width
+                height: 28
+
+                Text {
+                    text: root.selectedDay === AppState.todayDay ? "Today (" + root.selectedDay + ")" : root.selectedDay
+                    font.pixelSize: Theme.fontHeading
+                    font.bold: true
+                    color: Theme.textPrimary
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width - 160
+                }
+
+                Row {
+                    spacing: 10
+                    anchors.verticalCenter: parent.verticalCenter
+                    Text {
+                        text: "-" + AppState.formatMoney(root.dayExpense, AppState.wallets.system)
+                        color: Theme.expense
+                        font.pixelSize: Theme.fontSub
+                        font.bold: true
+                        visible: root.dayExpense > 0
+                    }
+                    Text {
+                        text: "+" + AppState.formatMoney(root.dayIncome, AppState.wallets.system)
+                        color: Theme.income
+                        font.pixelSize: Theme.fontSub
+                        font.bold: true
+                        visible: root.dayIncome > 0
+                    }
+                }
+            }
+
+            // Day's transaction list
+            Column {
+                width: parent.width
+                spacing: 0
+
+                Repeater {
+                    model: root.dayTransactions
+                    delegate: TransactionRow {
+                        width: parent.width
+                        tx: modelData
+                        onClicked: root.editTxRequested(modelData)
+                    }
+                }
+
+                Rectangle {
+                    width: parent.width
+                    height: 60
+                    radius: Theme.radiusCard
+                    color: Theme.cardBackground
+                    visible: root.dayTransactions.length === 0
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "No transactions on this day"
+                        color: Theme.textMuted
+                        font.pixelSize: Theme.fontBody
+                    }
+                }
+            }
+        }
+    }
+
+    function monthTitle() {
+        var parts = currentMonth.split("-");
+        if (parts.length < 2) return currentMonth;
+        var monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        var idx = parseInt(parts[1], 10) - 1;
+        return (idx >= 0 && idx < 12 ? monthNames[idx] : parts[1]) + " " + parts[0];
+    }
+
+    function shiftMonth(dir) {
+        var parts = currentMonth.split("-");
+        var y = parseInt(parts[0], 10);
+        var m = parseInt(parts[1], 10) + dir;
+        if (m < 1) { m = 12; y--; }
+        if (m > 12) { m = 1; y++; }
+        currentMonth = y + "-" + (m < 10 ? "0" + m : m);
+        loadMonth();
+    }
+
+    function buildMonthCells() {
+        var parts = currentMonth.split("-");
+        var y = parseInt(parts[0], 10);
+        var m = parseInt(parts[1], 10) - 1;
+        var firstDay = new Date(y, m, 1);
+        var startWeekday = firstDay.getDay(); // 0 = Sun
+        var daysInMonth = new Date(y, m + 1, 0).getDate();
+
+        var cells = [];
+        // Leading padding days
+        for (var i = 0; i < startWeekday; i++) {
+            cells.push({ dayNum: "", inMonth: false, hasTx: false, day: "" });
+        }
+        for (var d = 1; d <= daysInMonth; d++) {
+            var dayStr = y + "-" + (m + 1 < 10 ? "0" + (m + 1) : (m + 1)) + "-" + (d < 10 ? "0" + d : d);
+            var st = monthDaysMap[dayStr] || null;
+            var hasExp = st && st.expenseMinor > 0;
+            var hasInc = st && st.incomeMinor > 0;
+            cells.push({
+                dayNum: "" + d,
+                inMonth: true,
+                day: dayStr,
+                isToday: dayStr === AppState.todayDay,
+                hasTx: (hasExp || hasInc),
+                hasExpense: hasExp,
+                hasIncome: hasInc
+            });
+        }
+        return cells;
+    }
+
+    function loadMonth() {
+        Api.get("/api/calendar?month=" + currentMonth, function(err, res) {
+            if (!err && res && res.days) {
+                var map = {};
+                for (var i = 0; i < res.days.length; i++) {
+                    map[res.days[i].day] = res.days[i];
+                }
+                monthDaysMap = map;
+            }
+        });
+    }
+
+    function loadDay() {
+        Api.get("/api/overview?date=" + selectedDay, function(err, res) {
+            if (!err && res) {
+                dayExpense = res.expenseMinor || 0;
+                dayIncome = res.incomeMinor || 0;
+                dayTransactions = res.items || [];
+            }
+        });
+    }
+
+    Component.onCompleted: {
+        loadMonth();
+        loadDay();
+    }
+
+    Connections {
+        target: AppState
+        onTxChanged: {
+            loadMonth();
+            loadDay();
+        }
+    }
+}
