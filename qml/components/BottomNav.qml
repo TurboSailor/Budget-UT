@@ -11,7 +11,7 @@ Item {
     height: 60
     implicitWidth: 360
 
-    // White background card with top shadow/border
+    // White background card with top border
     Rectangle {
         anchors.fill: parent
         color: Theme.cardBackground
@@ -31,21 +31,31 @@ Item {
         anchors.fill: parent
 
         // 0: Home
-        NavItem {
+        Rectangle {
             width: parent.width / 5
-            iconText: "🏠"
-            label: "Home"
-            active: root.currentTab === 0
-            onClicked: root.tabSelected(0)
+            height: parent.height
+            color: "transparent"
+            Column {
+                anchors.centerIn: parent
+                spacing: 2
+                Text { text: "🏠"; font.pixelSize: 18; opacity: root.currentTab === 0 ? 1.0 : 0.4; anchors.horizontalCenter: parent.horizontalCenter }
+                Text { text: "Home"; font.pixelSize: 10; font.bold: root.currentTab === 0; color: root.currentTab === 0 ? Theme.textPrimary : Theme.textSecondary; anchors.horizontalCenter: parent.horizontalCenter }
+            }
+            MouseArea { anchors.fill: parent; onClicked: root.tabSelected(0) }
         }
 
         // 1: Calendar
-        NavItem {
+        Rectangle {
             width: parent.width / 5
-            iconText: "📅"
-            label: "Calendar"
-            active: root.currentTab === 1
-            onClicked: root.tabSelected(1)
+            height: parent.height
+            color: "transparent"
+            Column {
+                anchors.centerIn: parent
+                spacing: 2
+                Text { text: "📅"; font.pixelSize: 18; opacity: root.currentTab === 1 ? 1.0 : 0.4; anchors.horizontalCenter: parent.horizontalCenter }
+                Text { text: "Calendar"; font.pixelSize: 10; font.bold: root.currentTab === 1; color: root.currentTab === 1 ? Theme.textPrimary : Theme.textSecondary; anchors.horizontalCenter: parent.horizontalCenter }
+            }
+            MouseArea { anchors.fill: parent; onClicked: root.tabSelected(1) }
         }
 
         // Center space for FAB
@@ -55,21 +65,31 @@ Item {
         }
 
         // 2: Budget
-        NavItem {
+        Rectangle {
             width: parent.width / 5
-            iconText: "🎯"
-            label: "Budget"
-            active: root.currentTab === 2
-            onClicked: root.tabSelected(2)
+            height: parent.height
+            color: "transparent"
+            Column {
+                anchors.centerIn: parent
+                spacing: 2
+                Text { text: "🎯"; font.pixelSize: 18; opacity: root.currentTab === 2 ? 1.0 : 0.4; anchors.horizontalCenter: parent.horizontalCenter }
+                Text { text: "Budget"; font.pixelSize: 10; font.bold: root.currentTab === 2; color: root.currentTab === 2 ? Theme.textPrimary : Theme.textSecondary; anchors.horizontalCenter: parent.horizontalCenter }
+            }
+            MouseArea { anchors.fill: parent; onClicked: root.tabSelected(2) }
         }
 
         // 3: Accounts
-        NavItem {
+        Rectangle {
             width: parent.width / 5
-            iconText: "💳"
-            label: "Cards"
-            active: root.currentTab === 3
-            onClicked: root.tabSelected(3)
+            height: parent.height
+            color: "transparent"
+            Column {
+                anchors.centerIn: parent
+                spacing: 2
+                Text { text: "💳"; font.pixelSize: 18; opacity: root.currentTab === 3 ? 1.0 : 0.4; anchors.horizontalCenter: parent.horizontalCenter }
+                Text { text: "Cards"; font.pixelSize: 10; font.bold: root.currentTab === 3; color: root.currentTab === 3 ? Theme.textPrimary : Theme.textSecondary; anchors.horizontalCenter: parent.horizontalCenter }
+            }
+            MouseArea { anchors.fill: parent; onClicked: root.tabSelected(3) }
         }
     }
 
@@ -96,41 +116,6 @@ Item {
         MouseArea {
             anchors.fill: parent
             onClicked: root.addClicked()
-        }
-    }
-
-    component NavItem: Rectangle {
-        property string iconText: ""
-        property string label: ""
-        property bool active: false
-        signal clicked()
-
-        height: parent.height
-        color: "transparent"
-
-        Column {
-            anchors.centerIn: parent
-            spacing: 2
-
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: iconText
-                font.pixelSize: 18
-                opacity: active ? 1.0 : 0.4
-            }
-
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: label
-                font.pixelSize: 10
-                font.bold: active
-                color: active ? Theme.textPrimary : Theme.textSecondary
-            }
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            onClicked: parent.clicked()
         }
     }
 }

@@ -13,7 +13,7 @@ Item {
     property string currentMonth: AppState.selectedMonth
     property var calendarDays: []
     property var transactions: []
-    property string activeFilter: "Month" // Today | Week | Month | Year
+    property string activeFilter: "Month" // Today | Week | Month | All
     property int filterExpense: 0
     property int filterIncome: 0
 
@@ -27,7 +27,8 @@ Item {
             width: Math.min(parent.width - 24, 520)
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: 12
-            topPadding: 12
+
+            Item { width: 1; height: 4 } // Top spacer
 
             // Top Header: Title + Gear
             Row {
@@ -92,7 +93,6 @@ Item {
 
                     Row {
                         spacing: 20
-                        topPadding: 2
 
                         Row {
                             spacing: 4
@@ -199,7 +199,7 @@ Item {
                 }
             }
 
-            // Filter pills: Today | Week | Month | Year
+            // Filter pills: Today | Month | All
             Row {
                 width: parent.width
                 height: 32
@@ -217,9 +217,33 @@ Item {
                 Row {
                     spacing: 4
                     anchors.verticalCenter: parent.verticalCenter
-                    FilterPill { text: "Today"; active: root.activeFilter === "Today"; onClicked: { root.activeFilter = "Today"; root.loadTransactions(); } }
-                    FilterPill { text: "Month"; active: root.activeFilter === "Month"; onClicked: { root.activeFilter = "Month"; root.loadTransactions(); } }
-                    FilterPill { text: "All"; active: root.activeFilter === "All"; onClicked: { root.activeFilter = "All"; root.loadTransactions(); } }
+                    Repeater {
+                        model: ["Today", "Month", "All"]
+                        delegate: Rectangle {
+                            property bool active: root.activeFilter === modelData
+                            width: filterLbl.width + 16
+                            height: 26
+                            radius: 13
+                            color: active ? Theme.primary : Theme.cardBackground
+                            border.color: active ? Theme.primaryDark : Theme.cardBorder
+
+                            Text {
+                                id: filterLbl
+                                anchors.centerIn: parent
+                                text: modelData
+                                font.pixelSize: 11
+                                font.bold: active
+                                color: active ? Theme.primaryText : Theme.textSecondary
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: {
+                                    root.activeFilter = modelData;
+                                    root.loadTransactions();
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -253,31 +277,6 @@ Item {
                     }
                 }
             }
-        }
-    }
-
-    component FilterPill: Rectangle {
-        property string text: ""
-        property bool active: false
-        signal clicked()
-
-        width: lbl.width + 16
-        height: 26
-        radius: 13
-        color: active ? Theme.primary : Theme.cardBackground
-        border.color: active ? Theme.primaryDark : Theme.cardBorder
-
-        Text {
-            id: lbl
-            anchors.centerIn: parent
-            text: parent.text
-            font.pixelSize: 11
-            font.bold: active
-            color: active ? Theme.primaryText : Theme.textSecondary
-        }
-        MouseArea {
-            anchors.fill: parent
-            onClicked: parent.clicked()
         }
     }
 
@@ -315,8 +314,6 @@ Item {
         if (activeFilter === "Today") {
             q += "&from=" + AppState.todayDay + "&to=" + AppState.todayDay;
         } else if (activeFilter === "Month") {
-            var y = currentMonth.split("-")[0];
-            var m = currentMonth.split("-")[1];
             q += "&from=" + currentMonth + "-01&to=" + currentMonth + "-31";
         }
         Api.get(q, function(err, res) {
@@ -333,13 +330,13 @@ Item {
 
     Connections {
         target: AppState
-        onTxChanged: {
-            loadCalendar();
-            loadTransactions();
+        function onTxChanged() {
+            root.loadCalendar();
+            root.loadTransactions();
         }
-        onDataRefreshed: {
-            loadCalendar();
-            loadTransactions();
+        function onDataRefreshed() {
+            root.loadCalendar();
+            root.loadTransactions();
         }
     }
 }

@@ -26,7 +26,8 @@ Item {
             width: Math.min(parent.width - 24, 520)
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: 12
-            topPadding: 12
+
+            Item { width: 1; height: 4 } // Top spacer
 
             // Month Header
             Row {
@@ -121,9 +122,9 @@ Item {
                                 height: 38
                                 radius: 8
                                 color: {
-                                    if (modelData.day === root.selectedDay) return Theme.primary;
-                                    if (modelData.isToday) return "#FEF3C7";
-                                    return "transparent";
+                                    if (modelData.day === root.selectedDay) return Theme.primary
+                                    if (modelData.isToday) return "#FEF3C7"
+                                    return "transparent"
                                 }
 
                                 Column {
@@ -153,9 +154,9 @@ Item {
                                     anchors.fill: parent
                                     enabled: modelData.inMonth
                                     onClicked: {
-                                        root.selectedDay = modelData.day;
-                                        AppState.selectedDay = modelData.day;
-                                        root.loadDay();
+                                        root.selectedDay = modelData.day
+                                        AppState.selectedDay = modelData.day
+                                        root.loadDay()
                                     }
                                 }
                             }
@@ -231,41 +232,41 @@ Item {
     }
 
     function monthTitle() {
-        var parts = currentMonth.split("-");
-        if (parts.length < 2) return currentMonth;
-        var monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-        var idx = parseInt(parts[1], 10) - 1;
-        return (idx >= 0 && idx < 12 ? monthNames[idx] : parts[1]) + " " + parts[0];
+        var parts = currentMonth.split("-")
+        if (parts.length < 2) return currentMonth
+        var monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+        var idx = parseInt(parts[1], 10) - 1
+        return (idx >= 0 && idx < 12 ? monthNames[idx] : parts[1]) + " " + parts[0]
     }
 
     function shiftMonth(dir) {
-        var parts = currentMonth.split("-");
-        var y = parseInt(parts[0], 10);
-        var m = parseInt(parts[1], 10) + dir;
+        var parts = currentMonth.split("-")
+        var y = parseInt(parts[0], 10)
+        var m = parseInt(parts[1], 10) + dir
         if (m < 1) { m = 12; y--; }
         if (m > 12) { m = 1; y++; }
-        currentMonth = y + "-" + (m < 10 ? "0" + m : m);
-        loadMonth();
+        currentMonth = y + "-" + (m < 10 ? "0" + m : m)
+        loadMonth()
     }
 
     function buildMonthCells() {
-        var parts = currentMonth.split("-");
-        var y = parseInt(parts[0], 10);
-        var m = parseInt(parts[1], 10) - 1;
-        var firstDay = new Date(y, m, 1);
-        var startWeekday = firstDay.getDay(); // 0 = Sun
-        var daysInMonth = new Date(y, m + 1, 0).getDate();
+        var parts = currentMonth.split("-")
+        var y = parseInt(parts[0], 10)
+        var m = parseInt(parts[1], 10) - 1
+        var firstDay = new Date(y, m, 1)
+        var startWeekday = firstDay.getDay() // 0 = Sun
+        var daysInMonth = new Date(y, m + 1, 0).getDate()
 
-        var cells = [];
+        var cells = []
         // Leading padding days
         for (var i = 0; i < startWeekday; i++) {
-            cells.push({ dayNum: "", inMonth: false, hasTx: false, day: "" });
+            cells.push({ dayNum: "", inMonth: false, hasTx: false, day: "", isToday: false, hasExpense: false, hasIncome: false })
         }
         for (var d = 1; d <= daysInMonth; d++) {
-            var dayStr = y + "-" + (m + 1 < 10 ? "0" + (m + 1) : (m + 1)) + "-" + (d < 10 ? "0" + d : d);
-            var st = monthDaysMap[dayStr] || null;
-            var hasExp = st && st.expenseMinor > 0;
-            var hasInc = st && st.incomeMinor > 0;
+            var dayStr = y + "-" + (m + 1 < 10 ? "0" + (m + 1) : (m + 1)) + "-" + (d < 10 ? "0" + d : d)
+            var st = monthDaysMap[dayStr] || null
+            var hasExp = st && st.expenseMinor > 0
+            var hasInc = st && st.incomeMinor > 0
             cells.push({
                 dayNum: "" + d,
                 inMonth: true,
@@ -274,43 +275,43 @@ Item {
                 hasTx: (hasExp || hasInc),
                 hasExpense: hasExp,
                 hasIncome: hasInc
-            });
+            })
         }
-        return cells;
+        return cells
     }
 
     function loadMonth() {
         Api.get("/api/calendar?month=" + currentMonth, function(err, res) {
             if (!err && res && res.days) {
-                var map = {};
+                var map = {}
                 for (var i = 0; i < res.days.length; i++) {
-                    map[res.days[i].day] = res.days[i];
+                    map[res.days[i].day] = res.days[i]
                 }
-                monthDaysMap = map;
+                monthDaysMap = map
             }
-        });
+        })
     }
 
     function loadDay() {
         Api.get("/api/overview?date=" + selectedDay, function(err, res) {
             if (!err && res) {
-                dayExpense = res.expenseMinor || 0;
-                dayIncome = res.incomeMinor || 0;
-                dayTransactions = res.items || [];
+                dayExpense = res.expenseMinor || 0
+                dayIncome = res.incomeMinor || 0
+                dayTransactions = res.items || []
             }
-        });
+        })
     }
 
     Component.onCompleted: {
-        loadMonth();
-        loadDay();
+        loadMonth()
+        loadDay()
     }
 
     Connections {
         target: AppState
-        onTxChanged: {
-            loadMonth();
-            loadDay();
+        function onTxChanged() {
+            root.loadMonth()
+            root.loadDay()
         }
     }
 }

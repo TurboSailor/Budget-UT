@@ -20,7 +20,8 @@ Item {
             width: Math.min(parent.width - 24, 520)
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: 12
-            topPadding: 12
+
+            Item { width: 1; height: 4 } // Top spacer
 
             Text {
                 text: "Settings"

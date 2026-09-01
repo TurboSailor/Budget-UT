@@ -24,7 +24,8 @@ Item {
             width: Math.min(parent.width - 24, 520)
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: 12
-            topPadding: 12
+
+            Item { width: 1; height: 4 } // Top spacer
 
             // Header: Title + Add
             Row {
@@ -108,7 +109,6 @@ Item {
                         font.pixelSize: Theme.fontHeading
                         font.bold: true
                         color: Theme.textPrimary
-                        topPadding: 4
                     }
 
                     Column {

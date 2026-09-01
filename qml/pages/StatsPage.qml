@@ -23,7 +23,8 @@ Item {
             width: Math.min(parent.width - 24, 520)
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: 12
-            topPadding: 12
+
+            Item { width: 1; height: 4 } // Top spacer
 
             // Header
             Text {
@@ -42,9 +43,35 @@ Item {
 
                 Row {
                     anchors.fill: parent
-                    PeriodPill { text: "This Month"; active: root.period === "Month"; onClicked: { root.period = "Month"; root.loadStats(); } }
-                    PeriodPill { text: "This Year"; active: root.period === "Year"; onClicked: { root.period = "Year"; root.loadStats(); } }
-                    PeriodPill { text: "All Time"; active: root.period === "All"; onClicked: { root.period = "All"; root.loadStats(); } }
+                    Repeater {
+                        model: [
+                            { key: "Month", label: "This Month" },
+                            { key: "Year", label: "This Year" },
+                            { key: "All", label: "All Time" }
+                        ]
+                        delegate: Rectangle {
+                            property bool active: root.period === modelData.key
+                            width: parent.width / 3
+                            height: parent.height
+                            radius: 18
+                            color: active ? Theme.cardBackground : "transparent"
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: modelData.label
+                                font.pixelSize: 11
+                                font.bold: active
+                                color: active ? Theme.textPrimary : Theme.textSecondary
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: {
+                                    root.period = modelData.key;
+                                    root.loadStats();
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -94,7 +121,6 @@ Item {
                 font.pixelSize: Theme.fontHeading
                 font.bold: true
                 color: Theme.textPrimary
-                topPadding: 4
             }
 
             Column {
@@ -211,29 +237,6 @@ Item {
         }
     }
 
-    component PeriodPill: Rectangle {
-        property string text: ""
-        property bool active: false
-        signal clicked()
-
-        width: parent.width / 3
-        height: parent.height
-        radius: 18
-        color: active ? Theme.cardBackground : "transparent"
-
-        Text {
-            anchors.centerIn: parent
-            text: parent.text
-            font.pixelSize: 11
-            font.bold: active
-            color: active ? Theme.textPrimary : Theme.textSecondary
-        }
-        MouseArea {
-            anchors.fill: parent
-            onClicked: parent.clicked()
-        }
-    }
-
     function loadStats() {
         var today = AppState.todayDay;
         var parts = today.split("-");
@@ -262,9 +265,8 @@ Item {
     }
 
     Component.onCompleted: loadStats()
-
     Connections {
         target: AppState
-        onTxChanged: loadStats()
+        function onTxChanged() { root.loadStats(); }
     }
 }

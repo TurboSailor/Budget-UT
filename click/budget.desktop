@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=Budget
-Exec=qmlscene %U qml/Main.qml
+Exec=./run.sh %U
 Icon=budget.png
 Terminal=false
 Type=Application
