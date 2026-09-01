@@ -137,13 +137,20 @@ func (s *Store) BudgetStatuses(at string) ([]model.BudgetStatus, error) {
 	if err != nil {
 		return nil, fmt.Errorf("bad date %q: %w", at, err)
 	}
+	// Rates must be read before spentIn takes the store lock (Rate() locks too).
+	sysCur := s.SystemCurrency()
+	rateSys := s.Rate(sysCur)
 	out := []model.BudgetStatus{}
 	for _, b := range budgets {
 		if b.Value <= 0 {
 			continue // unbudgeted
 		}
+		if b.Currency == "" {
+			b.Currency = sysCur
+		}
 		ws, we := budgetWindow(b, ref)
-		spent, err := s.spentIn(b, ws.Format("2006-01-02"), we.AddDate(0, 0, -1).Format("2006-01-02"))
+		spent, err := s.spentIn(b, ws.Format("2006-01-02"), we.AddDate(0, 0, -1).Format("2006-01-02"),
+			rateSys, s.Rate(b.Currency))
 		if err != nil {
 			return nil, err
 		}
@@ -217,7 +224,12 @@ func weekStart(t time.Time) time.Time {
 	return time.Date(y, m, d, 0, 0, 0, 0, t.Location()).AddDate(0, 0, -wd)
 }
 
-func (s *Store) spentIn(b model.Budget, from, to string) (int64, error) {
+// spentIn totals the expenses of a budget's window **in the budget's own
+// currency**. Rows already booked in that currency are summed verbatim from
+// original_cost; anything else is converted from the system-currency `amount`
+// through the USD pivot (rates are "units per USD" and are passed in because
+// Rate() takes the same lock).
+func (s *Store) spentIn(b model.Budget, from, to string, rateSys, rateBudget float64) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	where := `status=0 AND ignored=0 AND ignore_budget=0 AND kind=0 AND day>=? AND day<=?`
@@ -230,14 +242,36 @@ func (s *Store) spentIn(b model.Budget, from, to string) (int64, error) {
 		where += ` AND subcategory_id=?`
 		args = append(args, b.RefID)
 	default:
+		// Ledger-wide budget. Rows imported before bill_id was populated carry
+		// NULL, so treat those as belonging to the active ledger.
 		if b.RefID != "" {
-			where += ` AND bill_id=?`
+			where += ` AND (bill_id=? OR bill_id IS NULL OR bill_id='')`
 			args = append(args, b.RefID)
 		}
 	}
-	var sum int64
-	err := s.db.QueryRow(`SELECT COALESCE(SUM(amount),0) FROM transactions WHERE `+where, args...).Scan(&sum)
-	return sum, err
+
+	cur := b.Currency
+	if cur == "" {
+		cur = "USD" // BudgetStatuses resolves the real fallback before locking
+	}
+	if rateBudget <= 0 {
+		rateBudget = 1
+	}
+	if rateSys <= 0 {
+		rateSys = 1
+	}
+
+	var same, otherSys int64
+	err := s.db.QueryRow(`SELECT
+		COALESCE(SUM(CASE WHEN original_currency=? THEN original_cost ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN original_currency=? THEN 0 ELSE amount END),0)
+		FROM transactions WHERE `+where,
+		append([]any{cur, cur}, args...)...).Scan(&same, &otherSys)
+	if err != nil {
+		return 0, err
+	}
+	converted := int64(float64(otherSys) / rateSys * rateBudget)
+	return same + converted, nil
 }
 
 // Wallets summarizes visible asset accounts + current-month income/expense in system currency.

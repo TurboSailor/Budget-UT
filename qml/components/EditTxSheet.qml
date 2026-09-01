@@ -26,6 +26,7 @@ Rectangle {
     property string entry: "0"      // number currently being typed
     property real acc: 0            // accumulated left-hand value
     property string pendingOp: ""   // "+", "-", "*", "/"
+    property bool entryDirty: false // has a digit been typed into `entry` yet
 
     color: "transparent"
     visible: visibleSheet
@@ -531,19 +532,28 @@ Rectangle {
 
     function appendDigit(d) {
         if (d === "." && entry.indexOf(".") >= 0) return
+        // A fresh operand (start, or right after an operator) replaces the "0".
+        if (!entryDirty && d !== ".") {
+            entry = d
+            entryDirty = true
+            return
+        }
         if (entry === "0" && d !== ".") {
             entry = d
+            entryDirty = true
             return
         }
         var dot = entry.indexOf(".")
         if (dot >= 0 && entry.length - dot > 2) return // max 2 decimals
         if (entry.replace(".", "").length >= 12) return
         entry += d
+        entryDirty = true
     }
 
     function backspace() {
         if (entry.length <= 1) {
             entry = "0"
+            entryDirty = false
             return
         }
         entry = entry.substring(0, entry.length - 1)
@@ -553,6 +563,7 @@ Rectangle {
         entry = "0"
         acc = 0
         pendingOp = ""
+        entryDirty = false
     }
 
     function compute(a, op, b) {
@@ -565,29 +576,39 @@ Rectangle {
         return b
     }
 
+    // Chained input evaluates left to right, like a phone calculator:
+    // 100 + 50 × 2 = 300.
     function applyOperator(op) {
         var cur = parseFloat(entry) || 0
-        if (pendingOp !== "") {
+        if (pendingOp !== "" && entryDirty) {
             acc = compute(acc, pendingOp, cur)
-        } else {
+        } else if (pendingOp === "") {
             acc = cur
         }
         pendingOp = op
         entry = "0"
+        entryDirty = false
     }
 
     function equals() {
         if (pendingOp === "") return
-        var cur = parseFloat(entry) || 0
-        acc = compute(acc, pendingOp, cur)
+        // Operator pressed but no second operand typed: keep the left side.
+        if (!entryDirty) {
+            pendingOp = ""
+            entry = trimNum(acc)
+            return
+        }
+        acc = compute(acc, pendingOp, parseFloat(entry) || 0)
         pendingOp = ""
         entry = trimNum(acc)
+        entryDirty = false
     }
 
     // resolve() folds any pending operation so Save always stores a number.
     function resolve() {
         var cur = parseFloat(entry) || 0
-        if (pendingOp !== "") return compute(acc, pendingOp, cur)
+        if (pendingOp !== "" && entryDirty) return compute(acc, pendingOp, cur)
+        if (pendingOp !== "") return acc
         return cur
     }
 
@@ -636,6 +657,7 @@ Rectangle {
         if (tx) {
             kind = tx.kind
             entry = trimNum((tx.originalCost || tx.amount) / 100)
+            entryDirty = true
             selectedCatId = tx.categoryId || ""
             selectedSubId = tx.subcategoryId || ""
             selectedAccId = tx.accountId || ""

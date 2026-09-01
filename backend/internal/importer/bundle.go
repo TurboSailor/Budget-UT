@@ -295,6 +295,16 @@ func ImportBundle(st *store.Store, path string) (map[string]int, error) {
 
 	// transactions
 	zone := st.Zone()
+	// Realm links a record to its ledger only through the category, so resolve
+	// category -> bill here; bill-scoped budgets filter on transactions.bill_id.
+	catBill := map[string]string{}
+	for _, r := range rows(&b, "BillClassify") {
+		catBill[str(r, "id")] = billPlainId(str(r, "bill"))
+	}
+	defaultBill := ""
+	if bl := rows(&b, "Bill"); len(bl) > 0 {
+		defaultBill = str(bl[0], "id")
+	}
 	for _, r := range rows(&b, "Expend") {
 		ts := ms(r, "date")
 		t := model.Tx{
@@ -317,6 +327,10 @@ func ImportBundle(st *store.Store, path string) (map[string]int, error) {
 		}
 		if c := catKey[str(r, "classify")]; c != "" {
 			t.CategoryID = &c
+			t.BillID = catBill[c]
+		}
+		if t.BillID == "" {
+			t.BillID = defaultBill
 		}
 		if s := subKey[str(r, "subcategory")]; s != "" {
 			t.SubcategoryID = &s

@@ -11,6 +11,10 @@ Item {
     property var budgetStatuses: []
     property int totalBudget: 0
     property int totalSpent: 0
+    property int totalLeft: 0
+    // Budgets carry their own currency (the source ledger budgets in RUB);
+    // the summary uses it when every budget agrees, else the system currency.
+    property string budgetCurrency: AppState.wallets.system
     property var editingBudget: null
     property bool showEditDialog: false
     property string editValStr: "0"
@@ -69,10 +73,10 @@ Item {
                 width: parent.width
                 spacing: units.gu(1.2)
 
-                // Monthly Card
+                // Monthly Card: budget, what is already spent, what remains
                 Rectangle {
                     width: (parent.width - units.gu(1.2)) / 2
-                    height: units.gu(13)
+                    height: units.gu(15)
                     radius: Theme.radiusCard
                     color: "#FEF3C7" // Soft yellow/orange
 
@@ -89,23 +93,47 @@ Item {
 
                         MoneyLabel {
                             minor: root.totalBudget
-                            currency: AppState.wallets.system
+                            currency: root.budgetCurrency
                             colored: false
                             font.pixelSize: Theme.fontTitle
                         }
 
+                        Rectangle {
+                            width: parent.width
+                            height: units.gu(0.7)
+                            radius: height / 2
+                            color: "#FFFFFF"
+
+                            Rectangle {
+                                height: parent.height
+                                radius: height / 2
+                                width: root.totalBudget > 0
+                                       ? parent.width * Math.min(1, root.totalSpent / root.totalBudget)
+                                       : 0
+                                color: root.totalLeft < 0 ? Theme.expense : Theme.primaryDark
+                            }
+                        }
+
                         Text {
-                            text: "Spent: " + AppState.formatMoney(root.totalSpent, AppState.wallets.system)
+                            text: "Spent " + AppState.formatMoney(root.totalSpent, root.budgetCurrency)
                             font.pixelSize: Theme.fontMicro
                             color: Theme.textSecondary
+                        }
+
+                        Text {
+                            text: (root.totalLeft < 0 ? "Over by " : "Left ")
+                                  + AppState.formatMoney(Math.abs(root.totalLeft), root.budgetCurrency)
+                            font.pixelSize: Theme.fontMicro
+                            font.bold: true
+                            color: root.totalLeft < 0 ? Theme.expense : Theme.income
                         }
                     }
                 }
 
-                // Daily allowance card
+                // Daily allowance: what is still safe to spend per remaining day
                 Rectangle {
                     width: (parent.width - units.gu(1.2)) / 2
-                    height: units.gu(13)
+                    height: units.gu(15)
                     radius: Theme.radiusCard
                     color: "#EDE9FE" // Soft lavender
 
@@ -121,16 +149,22 @@ Item {
                         }
 
                         MoneyLabel {
-                            minor: Math.round(root.totalBudget / 30)
-                            currency: AppState.wallets.system
+                            minor: root.dailyAllowance()
+                            currency: root.budgetCurrency
                             colored: false
                             font.pixelSize: Theme.fontTitle
                         }
 
                         Text {
-                            text: "per day allowance"
+                            text: root.daysLeftInMonth() + " days left this month"
                             font.pixelSize: Theme.fontMicro
                             color: Theme.textSecondary
+                        }
+
+                        Text {
+                            text: "Plan " + AppState.formatMoney(root.planPerDay(), root.budgetCurrency) + "/day"
+                            font.pixelSize: Theme.fontMicro
+                            color: Theme.textMuted
                         }
                     }
                 }
@@ -328,18 +362,56 @@ Item {
 
     function loadBudgets() {
         Api.get("/api/budgets/status", function(err, res) {
-            if (!err && res) {
-                budgetStatuses = res;
-                var total = 0;
-                var spent = 0;
-                for (var i = 0; i < res.length; i++) {
-                    total += res[i].budget.value || 0;
-                    spent += res[i].spentMinor || 0;
-                }
-                totalBudget = total;
-                totalSpent = spent;
+            if (err || !res) return;
+            budgetStatuses = res;
+
+            // Pick the display currency: the shared one if every budget agrees,
+            // otherwise fall back to the system currency and convert into it.
+            var cur = "";
+            var mixed = false;
+            for (var i = 0; i < res.length; i++) {
+                var c = res[i].budget.currency || AppState.wallets.system;
+                if (cur === "") cur = c;
+                else if (cur !== c) mixed = true;
             }
+            if (cur === "" || mixed) cur = AppState.wallets.system;
+            budgetCurrency = cur;
+
+            var rateTarget = AppState.rateOf(cur);
+            var total = 0;
+            var spent = 0;
+            for (var j = 0; j < res.length; j++) {
+                var b = res[j].budget;
+                var bc = b.currency || AppState.wallets.system;
+                var k = (bc === cur) ? 1 : (rateTarget / AppState.rateOf(bc));
+                total += Math.round((b.value || 0) * k);
+                spent += Math.round((res[j].spentMinor || 0) * k);
+            }
+            totalBudget = total;
+            totalSpent = spent;
+            totalLeft = total - spent;
         });
+    }
+
+    function daysInMonth() {
+        var p = AppState.todayDay.split("-");
+        return new Date(parseInt(p[0], 10), parseInt(p[1], 10), 0).getDate();
+    }
+
+    function daysLeftInMonth() {
+        var p = AppState.todayDay.split("-");
+        return Math.max(1, daysInMonth() - parseInt(p[2], 10) + 1);
+    }
+
+    // What is still safe to spend per remaining day of the period.
+    function dailyAllowance() {
+        if (totalLeft <= 0) return 0;
+        return Math.round(totalLeft / daysLeftInMonth());
+    }
+
+    // The flat plan figure: budget spread evenly across the whole month.
+    function planPerDay() {
+        return Math.round(totalBudget / daysInMonth());
     }
 
     function openEdit(b) {
