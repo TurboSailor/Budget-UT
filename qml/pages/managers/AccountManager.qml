@@ -11,6 +11,10 @@ import "../../js/api.js" as Api
 Item {
     id: root
 
+    // Explicit model property: a `model: visibleAccounts()` binding depends on
+    // plain JS objects with no change notification, so the list could go stale
+    // right after an edit. Rebuilt on every store refresh instead.
+    property var rows: []
     property bool showHidden: false
     property string statusMsg: ""
 
@@ -43,9 +47,20 @@ Item {
         }
         return out;
     }
+    function refreshRows() {
+        root.rows = root.visibleAccounts();
+    }
 
     function reload() {
         AppState.reload();
+        root.refreshRows();
+    }
+
+    Component.onCompleted: root.refreshRows()
+
+    Connections {
+        target: AppState
+        function onDataRefreshed() { root.refreshRows() }
     }
 
     function openCreate() {
@@ -182,7 +197,7 @@ Item {
                     }
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: root.showHidden = !root.showHidden
+                        onClicked: { root.showHidden = !root.showHidden; root.refreshRows() }
                     }
                 }
             }
@@ -197,7 +212,7 @@ Item {
             }
 
             Repeater {
-                model: root.visibleAccounts()
+                model: root.rows
 
                 delegate: Rectangle {
                     width: col.width

@@ -8,6 +8,7 @@ import "../js/api.js" as Api
 Item {
     id: root
 
+    property var sections: []
     property bool showAddDialog: false
     property string newName: ""
     property string newCurrency: AppState.wallets.system || "USD"
@@ -102,9 +103,12 @@ Item {
                 }
             }
 
-            // Grouped Accounts List
+            // Grouped Accounts List. The model is an explicit property, not a
+            // direct function call: the sections are plain JS objects with no
+            // change notification, so edits made elsewhere (Settings ->
+            // Account manager) never reached this list on their own.
             Repeater {
-                model: root.buildGroupedSections()
+                model: root.sections
                 delegate: Column {
                     width: parent.width
                     spacing: units.gu(0.8)
@@ -321,6 +325,20 @@ Item {
         anchors.fill: parent
         z: 90
         onChanged: AppState.reload()
+    }
+
+    // Rebuild whenever the store changes: account edits also happen in
+    // Settings -> Account manager and in the account card sheet.
+    function refreshSections() {
+        root.sections = root.buildGroupedSections()
+    }
+
+    Component.onCompleted: root.refreshSections()
+
+    Connections {
+        target: AppState
+        function onDataRefreshed() { root.refreshSections() }
+        function onTxChanged() { root.refreshSections() }
     }
 
 
