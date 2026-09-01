@@ -678,6 +678,16 @@ Rectangle {
         visibleSheet = true
     }
 
+    // Home tiles enter here: the category (and therefore expense/income) is
+    // already chosen, so the sheet opens straight on the keypad.
+    function openFor(category) {
+        open(null)
+        if (!category) return
+        kind = category.isIncome ? 2 : 0
+        selectedCatId = category.id
+        selectedSubId = ""
+    }
+
     function close() {
         visibleSheet = false
         root.closed()

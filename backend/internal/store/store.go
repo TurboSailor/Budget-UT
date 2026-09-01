@@ -290,6 +290,16 @@ func (s *Store) SaveBill(b model.Bill) error {
 	return err
 }
 
+// DeleteBill soft-deletes a ledger. Its categories and transactions keep their
+// own status: a ledger is a container, hiding it must not lose history if the
+// user restores it later.
+func (s *Store) DeleteBill(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, err := s.db.Exec(`UPDATE bills SET status=1 WHERE id=?`, id)
+	return err
+}
+
 const catCols = `id, bill_id, name, is_income, icon, color, sorted, status`
 
 func (s *Store) Categories() ([]model.Category, error) {
@@ -465,6 +475,41 @@ func (s *Store) SaveCurrency(c model.Currency) error {
 		  country=excluded.country, rate=excluded.rate, in_use=excluded.in_use`,
 		c.Code, c.Symbol, c.Name, c.Country, c.Rate, b2i(c.InUse))
 	return err
+}
+
+// UpdateRates bulk-applies fetched quotes (units per USD) in one transaction.
+// Existing rows keep their symbol/name/country/in_use — only `rate` moves;
+// unknown codes are inserted dormant (in_use=0) so the picker can offer them
+// without the wallet views suddenly gaining currencies. Returns rows written.
+func (s *Store) UpdateRates(m map[string]float64) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	tx, err := s.db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+	stmt, err := tx.Prepare(`INSERT INTO currencies(code,symbol,name,country,rate,in_use)
+		VALUES(?,'','','',?,0)
+		ON CONFLICT(code) DO UPDATE SET rate=excluded.rate`)
+	if err != nil {
+		return 0, err
+	}
+	defer stmt.Close()
+	n := 0
+	for code, rate := range m {
+		if code == "" || rate <= 0 {
+			continue
+		}
+		if _, err := stmt.Exec(code, rate); err != nil {
+			return 0, fmt.Errorf("rate %s: %w", code, err)
+		}
+		n++
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return n, nil
 }
 
 // Rate returns units-per-USD for a code (1.0 if unknown).

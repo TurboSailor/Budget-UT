@@ -2,6 +2,11 @@
 package api
 
 import (
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -9,12 +14,14 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"budgetd/internal/importer"
 	"budgetd/internal/model"
+	"budgetd/internal/rates"
 	"budgetd/internal/store"
 )
 
@@ -56,6 +63,14 @@ func (s *Server) routes() {
 	m.HandleFunc("/api/budgets/status", s.handleBudgetStatus)
 	m.HandleFunc("/api/budgets/", s.handleBudgetItem)
 	m.HandleFunc("/api/stats", s.handleStats)
+	m.HandleFunc("/api/stats/summary", s.handleStatsSummary)
+	m.HandleFunc("/api/bills", s.handleBills)
+	m.HandleFunc("/api/bills/", s.handleBillItem)
+	m.HandleFunc("/api/rates", s.handleRates)
+	m.HandleFunc("/api/rates/refresh", s.handleRatesRefresh)
+	m.HandleFunc("/api/security", s.handleSecurity)
+	m.HandleFunc("/api/security/pin", s.handleSecurityPin)
+	m.HandleFunc("/api/security/verify", s.handleSecurityVerify)
 	m.HandleFunc("/api/recurring", s.handleRecurring)
 	m.HandleFunc("/api/recurring/run", s.handleRecurringRun)
 	m.HandleFunc("/api/recurring/", s.handleRecurringItem)
@@ -696,4 +711,356 @@ func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"reset": true, "source": path, "counts": counts})
+}
+
+// ---- settings-screen features: ledgers, FX rates, PIN, global stats ----
+
+// Settings keys owned by the features below.
+const (
+	keyRatesUpdatedAt = "ratesUpdatedAt"
+	keyRatesSource    = "ratesSource"
+	keyPinSalt        = "pinSalt"
+	keyPinHash        = "pinHash"
+	keyBillID         = "billId"
+
+	// ratesMaxAge is how long a fetched table is considered fresh.
+	ratesMaxAge = 24 * time.Hour
+	// refreshBudget bounds an interactive refresh so the QML XHR (10 s
+	// timeout) always receives a real answer instead of dying on the client.
+	refreshBudget = 8 * time.Second
+)
+
+func (s *Server) handleStatsSummary(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	sum, err := s.st.SummaryStats()
+	if err != nil {
+		errJSON(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, sum)
+}
+
+// handleBills lists the active ledgers and creates new ones.
+func (s *Server) handleBills(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		bills, err := s.st.Bills()
+		if err != nil {
+			errJSON(w, http.StatusInternalServerError, err)
+			return
+		}
+		out := []model.Bill{}
+		for _, b := range bills {
+			if b.Status == model.StatusActive {
+				out = append(out, b)
+			}
+		}
+		writeJSON(w, http.StatusOK, out)
+	case http.MethodPost:
+		var b model.Bill
+		if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
+			errJSON(w, http.StatusBadRequest, err)
+			return
+		}
+		if strings.TrimSpace(b.Name) == "" {
+			errJSON(w, http.StatusBadRequest, errors.New("ledger name required"))
+			return
+		}
+		if b.ID == "" {
+			b.ID = store.NewID()
+		}
+		if b.Icon == "" {
+			b.Icon = "daily_0"
+		}
+		if b.Color == "" {
+			b.Color = "FEDB5A"
+		}
+		if b.Sorted == 0 {
+			b.Sorted = float64(time.Now().UnixMilli()) / 1000
+		}
+		if err := s.st.SaveBill(b); err != nil {
+			errJSON(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, b)
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (s *Server) handleBillItem(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimPrefix(r.URL.Path, "/api/bills/")
+	if id == "" {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	switch r.Method {
+	case http.MethodPut:
+		var b model.Bill
+		if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
+			errJSON(w, http.StatusBadRequest, err)
+			return
+		}
+		b.ID = id
+		if err := s.st.SaveBill(b); err != nil {
+			errJSON(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, b)
+	case http.MethodDelete:
+		bills, err := s.st.Bills()
+		if err != nil {
+			errJSON(w, http.StatusInternalServerError, err)
+			return
+		}
+		remaining := 0
+		for _, b := range bills {
+			if b.Status == model.StatusActive && b.ID != id {
+				remaining++
+			}
+		}
+		if remaining == 0 {
+			errJSON(w, http.StatusBadRequest, errors.New("cannot delete the last ledger"))
+			return
+		}
+		if err := s.st.DeleteBill(id); err != nil {
+			errJSON(w, http.StatusInternalServerError, err)
+			return
+		}
+		// Never leave the app pointing at a deleted ledger.
+		if s.st.Setting(keyBillID, "") == id {
+			for _, b := range bills {
+				if b.Status == model.StatusActive && b.ID != id {
+					_ = s.st.SetSetting(keyBillID, b.ID)
+					break
+				}
+			}
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+type rateItem struct {
+	Code   string  `json:"code"`
+	Symbol string  `json:"symbol"`
+	Name   string  `json:"name"`
+	Rate   float64 `json:"rate"`
+	InUse  bool    `json:"inUse"`
+}
+
+type ratesResponse struct {
+	Base      string     `json:"base"`      // pivot of every rate: units per 1 base
+	System    string     `json:"system"`    // settings systemCurrency, for convenience
+	UpdatedAt string     `json:"updatedAt"` // RFC3339, empty when never fetched
+	Source    string     `json:"source"`
+	Items     []rateItem `json:"items"`
+}
+
+func (s *Server) handleRates(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	resp, err := s.ratesSnapshot()
+	if err != nil {
+		errJSON(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleRatesRefresh(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost && r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), refreshBudget)
+	defer cancel()
+	if _, _, err := RefreshRates(ctx, s.st); err != nil {
+		errJSON(w, http.StatusBadGateway, err)
+		return
+	}
+	resp, err := s.ratesSnapshot()
+	if err != nil {
+		errJSON(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// ratesSnapshot renders the currency table. inUse means "the user actually
+// touches this currency": flagged in the table, held by a live account, or the
+// system currency itself.
+func (s *Server) ratesSnapshot() (*ratesResponse, error) {
+	curs, err := s.st.Currencies()
+	if err != nil {
+		return nil, err
+	}
+	accts, err := s.st.Accounts()
+	if err != nil {
+		return nil, err
+	}
+	system := s.st.SystemCurrency()
+	used := map[string]bool{system: true}
+	for _, a := range accts {
+		if a.Status == model.StatusActive {
+			used[a.Currency] = true
+		}
+	}
+	resp := &ratesResponse{
+		Base:      rates.Base,
+		System:    system,
+		UpdatedAt: s.st.Setting(keyRatesUpdatedAt, ""),
+		Source:    s.st.Setting(keyRatesSource, ""),
+		Items:     make([]rateItem, 0, len(curs)),
+	}
+	for _, c := range curs {
+		resp.Items = append(resp.Items, rateItem{
+			Code:   c.Code,
+			Symbol: c.Symbol,
+			Name:   c.Name,
+			Rate:   c.Rate,
+			InUse:  c.InUse || used[c.Code],
+		})
+	}
+	sort.SliceStable(resp.Items, func(i, j int) bool {
+		if resp.Items[i].InUse != resp.Items[j].InUse {
+			return resp.Items[i].InUse
+		}
+		return resp.Items[i].Code < resp.Items[j].Code
+	})
+	return resp, nil
+}
+
+// RefreshRates fetches quotes, stores them and stamps the freshness markers.
+// Shared by the HTTP endpoint and the daemon's background ticker.
+func RefreshRates(ctx context.Context, st *store.Store) (int, string, error) {
+	_, table, source, err := rates.Fetch(ctx)
+	if err != nil {
+		return 0, "", err
+	}
+	n, err := st.UpdateRates(table)
+	if err != nil {
+		return 0, source, err
+	}
+	if err := st.SetSetting(keyRatesUpdatedAt, time.Now().UTC().Format(time.RFC3339)); err != nil {
+		return n, source, err
+	}
+	if err := st.SetSetting(keyRatesSource, source); err != nil {
+		return n, source, err
+	}
+	return n, source, nil
+}
+
+// RatesUpdatedAt is the last successful refresh, zero when never or unparsable.
+func RatesUpdatedAt(st *store.Store) time.Time {
+	v := st.Setting(keyRatesUpdatedAt, "")
+	if v == "" {
+		return time.Time{}
+	}
+	t, err := time.Parse(time.RFC3339, v)
+	if err != nil {
+		return time.Time{}
+	}
+	return t
+}
+
+// RatesStale reports whether the stored table is older than ratesMaxAge.
+func RatesStale(st *store.Store) bool {
+	return time.Since(RatesUpdatedAt(st)) > ratesMaxAge
+}
+
+func (s *Server) handleSecurity(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"pinEnabled": s.pinEnabled()})
+}
+
+func (s *Server) pinEnabled() bool {
+	return s.st.Setting(keyPinHash, "") != "" && s.st.Setting(keyPinSalt, "") != ""
+}
+
+// handleSecurityPin sets or clears the lock PIN. The plaintext never touches
+// the database: only a random salt and sha256(salt||pin) are stored.
+func (s *Server) handleSecurityPin(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost && r.Method != http.MethodPut {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		Pin string `json:"pin"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		errJSON(w, http.StatusBadRequest, err)
+		return
+	}
+	if req.Pin == "" { // disable
+		if err := s.st.SetSetting(keyPinHash, ""); err != nil {
+			errJSON(w, http.StatusInternalServerError, err)
+			return
+		}
+		if err := s.st.SetSetting(keyPinSalt, ""); err != nil {
+			errJSON(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"pinEnabled": false})
+		return
+	}
+	salt := make([]byte, 16)
+	if _, err := rand.Read(salt); err != nil {
+		errJSON(w, http.StatusInternalServerError, err)
+		return
+	}
+	if err := s.st.SetSetting(keyPinSalt, hex.EncodeToString(salt)); err != nil {
+		errJSON(w, http.StatusInternalServerError, err)
+		return
+	}
+	if err := s.st.SetSetting(keyPinHash, pinHash(salt, req.Pin)); err != nil {
+		errJSON(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"pinEnabled": true})
+}
+
+// handleSecurityVerify answers ok=true for a matching PIN, and also when no
+// PIN is configured — an unlocked app has nothing to refuse.
+func (s *Server) handleSecurityVerify(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		Pin string `json:"pin"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		errJSON(w, http.StatusBadRequest, err)
+		return
+	}
+	if !s.pinEnabled() {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+		return
+	}
+	salt, err := hex.DecodeString(s.st.Setting(keyPinSalt, ""))
+	if err != nil {
+		errJSON(w, http.StatusInternalServerError, errors.New("corrupt pin salt"))
+		return
+	}
+	want := s.st.Setting(keyPinHash, "")
+	got := pinHash(salt, req.Pin)
+	ok := subtle.ConstantTimeCompare([]byte(want), []byte(got)) == 1
+	writeJSON(w, http.StatusOK, map[string]any{"ok": ok})
+}
+
+func pinHash(salt []byte, pin string) string {
+	h := sha256.New()
+	h.Write(salt)
+	h.Write([]byte(pin))
+	return hex.EncodeToString(h.Sum(nil))
 }

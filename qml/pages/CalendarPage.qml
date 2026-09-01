@@ -29,53 +29,30 @@ Item {
 
             Item { width: 1; height: units.gu(0.5) } // Top spacer
 
-            // Month Header
-            Row {
+            // Month Header. Anchored, not spacer-computed: long month names
+            // used to push the ▶ arrow past the screen edge.
+            Item {
                 width: parent.width
                 height: units.gu(4.5)
 
                 Text {
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width - nav.width - units.gu(1)
+                    elide: Text.ElideRight
                     text: "Calendar"
                     font.pixelSize: Theme.fontTitle
                     font.bold: true
                     color: Theme.textPrimary
-                    anchors.verticalCenter: parent.verticalCenter
                 }
 
-                Item { width: parent.width - units.gu(26); height: 1 }
-
-                Row {
-                    spacing: units.gu(1.2)
+                MonthNavigator {
+                    id: nav
+                    anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
-
-                    Text {
-                        text: "◀"
-                        font.pixelSize: units.dp(14)
-                        color: Theme.textSecondary
-                        MouseArea {
-                            anchors.fill: parent
-                            anchors.margins: -units.gu(0.8)
-                            onClicked: root.shiftMonth(-1)
-                        }
-                    }
-
-                    Text {
-                        text: root.monthTitle()
-                        font.pixelSize: Theme.fontHeading
-                        font.bold: true
-                        color: Theme.textPrimary
-                    }
-
-                    Text {
-                        text: "▶"
-                        font.pixelSize: units.dp(14)
-                        color: Theme.textSecondary
-                        MouseArea {
-                            anchors.fill: parent
-                            anchors.margins: -units.gu(0.8)
-                            onClicked: root.shiftMonth(1)
-                        }
-                    }
+                    month: root.currentMonth
+                    longNames: true
+                    onStepped: root.shiftMonth(delta)
                 }
             }
 

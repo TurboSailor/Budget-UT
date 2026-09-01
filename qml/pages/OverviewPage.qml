@@ -5,15 +5,23 @@ import "../store"
 import "../components"
 import "../js/api.js" as Api
 
+// Home = the recording surface: balance on top, then the category tiles
+// (expenses first, income below). Tapping a tile books a transaction in that
+// category; holding one edits the category.
 Item {
     id: root
     signal editTxRequested(var tx)
     signal settingsRequested()
+    signal statsRequested()
+    signal quickAddRequested(var category)
+    signal categoryEditRequested(var category)
+    signal categoryCreateRequested(bool income)
 
-    property string currentMonth: AppState.selectedMonth
-    property var calendarDays: []
-    property var transactions: []
-    property string activeFilter: "Month" // Today | Month | All
+    property var todayItems: []
+    property int todayExpense: 0
+    property int todayIncome: 0
+
+    readonly property int tileColumns: 4
 
     Flickable {
         anchors.fill: parent
@@ -26,47 +34,67 @@ Item {
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: units.gu(1.5)
 
-            Item { width: 1; height: units.gu(0.5) } // Top spacer
+            Item { width: 1; height: units.gu(0.5) }
 
-            // Top Header: Title + Gear
-            Row {
+            // Header: title + stats/settings shortcuts
+            Item {
                 width: parent.width
                 height: units.gu(4.5)
 
                 Text {
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
                     text: "My Wallet"
                     font.pixelSize: Theme.fontTitle
                     font.bold: true
                     color: Theme.textPrimary
-                    anchors.verticalCenter: parent.verticalCenter
                 }
 
-                Item { width: parent.width - units.gu(22); height: 1 }
-
-                Rectangle {
-                    width: units.gu(4.5)
-                    height: units.gu(4.5)
-                    radius: width / 2
-                    color: Theme.cardBackground
-                    border.color: Theme.cardBorder
+                Row {
+                    anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
+                    spacing: units.gu(1)
 
-                    Text {
-                        anchors.centerIn: parent
-                        text: "⚙"
-                        font.pixelSize: units.dp(20)
+                    Rectangle {
+                        width: units.gu(4.5)
+                        height: units.gu(4.5)
+                        radius: width / 2
+                        color: Theme.cardBackground
+                        border.color: Theme.cardBorder
+                        Text {
+                            anchors.centerIn: parent
+                            text: "📊"
+                            font.pixelSize: units.dp(17)
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: root.statsRequested()
+                        }
                     }
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: root.settingsRequested()
+
+                    Rectangle {
+                        width: units.gu(4.5)
+                        height: units.gu(4.5)
+                        radius: width / 2
+                        color: Theme.cardBackground
+                        border.color: Theme.cardBorder
+                        Text {
+                            anchors.centerIn: parent
+                            text: "⚙"
+                            font.pixelSize: units.dp(19)
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: root.settingsRequested()
+                        }
                     }
                 }
             }
 
-            // Total Balance Card
+            // Balance card
             Rectangle {
                 width: parent.width
-                height: units.gu(14)
+                height: units.gu(13)
                 radius: Theme.radiusCard
                 color: Theme.cardBackground
                 border.color: Theme.cardBorder
@@ -74,7 +102,7 @@ Item {
                 Column {
                     anchors.fill: parent
                     anchors.margins: units.gu(1.8)
-                    spacing: units.gu(0.6)
+                    spacing: units.gu(0.5)
 
                     Text {
                         text: "Total Balance"
@@ -95,12 +123,10 @@ Item {
                         Row {
                             spacing: units.gu(0.6)
                             Text { text: "▲"; font.pixelSize: units.dp(11); color: Theme.income; anchors.verticalCenter: parent.verticalCenter }
-                            Text { text: "Income:"; font.pixelSize: Theme.fontSub; color: Theme.textSecondary }
                             MoneyLabel {
                                 minor: AppState.wallets.incomeMinor
                                 currency: AppState.wallets.system
                                 kind: 2
-                                colored: true
                                 font.pixelSize: Theme.fontSub
                             }
                         }
@@ -108,12 +134,10 @@ Item {
                         Row {
                             spacing: units.gu(0.6)
                             Text { text: "▼"; font.pixelSize: units.dp(11); color: Theme.expense; anchors.verticalCenter: parent.verticalCenter }
-                            Text { text: "Expense:"; font.pixelSize: Theme.fontSub; color: Theme.textSecondary }
                             MoneyLabel {
                                 minor: AppState.wallets.expenseMinor
                                 currency: AppState.wallets.system
                                 kind: 0
-                                colored: true
                                 font.pixelSize: Theme.fontSub
                             }
                         }
@@ -121,137 +145,148 @@ Item {
                 }
             }
 
-            // Statistics / Month Bar Chart Card
+            // ---- Expense tiles ----
+            Item {
+                width: parent.width
+                height: units.gu(3)
+
+                Text {
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Expense"
+                    font.pixelSize: Theme.fontHeading
+                    font.bold: true
+                    color: Theme.textPrimary
+                }
+
+                Text {
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "hold a tile to edit"
+                    font.pixelSize: Theme.fontMicro
+                    color: Theme.textMuted
+                }
+            }
+
             Rectangle {
                 width: parent.width
-                height: units.gu(25)
+                height: expenseGrid.height + units.gu(2)
                 radius: Theme.radiusCard
                 color: Theme.cardBackground
                 border.color: Theme.cardBorder
 
-                Column {
-                    anchors.fill: parent
-                    anchors.margins: units.gu(1.4)
-                    spacing: units.gu(0.6)
+                Grid {
+                    id: expenseGrid
+                    anchors.centerIn: parent
+                    width: parent.width - units.gu(2)
+                    columns: root.tileColumns
 
-                    // Month navigator
-                    Row {
-                        width: parent.width
-                        height: units.gu(3.5)
-
-                        Text {
-                            text: "Daily Activity"
-                            font.pixelSize: Theme.fontHeading
-                            font.bold: true
-                            color: Theme.textPrimary
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-
-                        Item { width: parent.width - units.gu(28); height: 1 }
-
-                        Row {
-                            spacing: units.gu(1)
-                            anchors.verticalCenter: parent.verticalCenter
-
-                            Text {
-                                text: "◀"
-                                font.pixelSize: units.dp(14)
-                                color: Theme.textSecondary
-                                MouseArea {
-                                    anchors.fill: parent
-                                    anchors.margins: -units.gu(0.8)
-                                    onClicked: root.shiftMonth(-1)
-                                }
-                            }
-
-                            Text {
-                                text: root.formatMonthHeader(root.currentMonth)
-                                font.pixelSize: Theme.fontSub
-                                font.bold: true
-                                color: Theme.textPrimary
-                            }
-
-                            Text {
-                                text: "▶"
-                                font.pixelSize: units.dp(14)
-                                color: Theme.textSecondary
-                                MouseArea {
-                                    anchors.fill: parent
-                                    anchors.margins: -units.gu(0.8)
-                                    onClicked: root.shiftMonth(1)
-                                }
-                            }
+                    Repeater {
+                        model: root.categoriesOf(false)
+                        delegate: CategoryTile {
+                            width: expenseGrid.width / root.tileColumns
+                            category: modelData
+                            onPicked: root.quickAddRequested(modelData)
+                            onEdit: root.categoryEditRequested(modelData)
                         }
                     }
 
-                    BarChart {
-                        width: parent.width
-                        height: units.gu(18)
-                        days: root.calendarDays
-                        selectedDay: AppState.selectedDay
-                        onBarClicked: {
-                            AppState.selectedDay = day;
-                            root.loadTransactions();
-                        }
+                    CategoryTile {
+                        width: expenseGrid.width / root.tileColumns
+                        isAdd: true
+                        onPicked: root.categoryCreateRequested(false)
                     }
                 }
             }
 
-            // Filter pills: Today | Month | All
-            Row {
+            // ---- Income tiles ----
+            Item {
                 width: parent.width
-                height: units.gu(4)
-                spacing: units.gu(0.8)
+                height: units.gu(3)
 
                 Text {
-                    text: "Transactions"
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Income"
                     font.pixelSize: Theme.fontHeading
                     font.bold: true
                     color: Theme.textPrimary
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width - units.gu(24)
                 }
+            }
 
-                Row {
-                    spacing: units.gu(0.6)
-                    anchors.verticalCenter: parent.verticalCenter
+            Rectangle {
+                width: parent.width
+                height: incomeGrid.height + units.gu(2)
+                radius: Theme.radiusCard
+                color: Theme.cardBackground
+                border.color: Theme.cardBorder
+
+                Grid {
+                    id: incomeGrid
+                    anchors.centerIn: parent
+                    width: parent.width - units.gu(2)
+                    columns: root.tileColumns
+
                     Repeater {
-                        model: ["Today", "Month", "All"]
-                        delegate: Rectangle {
-                            property bool active: root.activeFilter === modelData
-                            width: filterLbl.width + units.gu(2)
-                            height: units.gu(3.2)
-                            radius: height / 2
-                            color: active ? Theme.primary : Theme.cardBackground
-                            border.color: active ? Theme.primaryDark : Theme.cardBorder
-
-                            Text {
-                                id: filterLbl
-                                anchors.centerIn: parent
-                                text: modelData
-                                font.pixelSize: Theme.fontMicro
-                                font.bold: active
-                                color: active ? Theme.primaryText : Theme.textSecondary
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                onClicked: {
-                                    root.activeFilter = modelData;
-                                    root.loadTransactions();
-                                }
-                            }
+                        model: root.categoriesOf(true)
+                        delegate: CategoryTile {
+                            width: incomeGrid.width / root.tileColumns
+                            category: modelData
+                            onPicked: root.quickAddRequested(modelData)
+                            onEdit: root.categoryEditRequested(modelData)
                         }
+                    }
+
+                    CategoryTile {
+                        width: incomeGrid.width / root.tileColumns
+                        isAdd: true
+                        onPicked: root.categoryCreateRequested(true)
                     }
                 }
             }
 
-            // Transaction list
+            // ---- Today ----
+            Item {
+                width: parent.width
+                height: units.gu(3.5)
+
+                Text {
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Today"
+                    font.pixelSize: Theme.fontHeading
+                    font.bold: true
+                    color: Theme.textPrimary
+                }
+
+                Row {
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: units.gu(1.2)
+
+                    Text {
+                        text: "-" + AppState.formatMoney(root.todayExpense, AppState.wallets.system)
+                        font.pixelSize: Theme.fontSub
+                        font.bold: true
+                        color: Theme.expense
+                        visible: root.todayExpense > 0
+                    }
+                    Text {
+                        text: "+" + AppState.formatMoney(root.todayIncome, AppState.wallets.system)
+                        font.pixelSize: Theme.fontSub
+                        font.bold: true
+                        color: Theme.income
+                        visible: root.todayIncome > 0
+                    }
+                }
+            }
+
             Column {
                 width: parent.width
                 spacing: units.gu(0.4)
 
                 Repeater {
-                    model: root.transactions
+                    model: root.todayItems
                     delegate: TransactionRow {
                         width: parent.width
                         tx: modelData
@@ -259,84 +294,47 @@ Item {
                     }
                 }
 
-                // Empty state
                 Rectangle {
                     width: parent.width
-                    height: units.gu(10)
+                    height: units.gu(8)
                     radius: Theme.radiusCard
                     color: Theme.cardBackground
-                    visible: root.transactions.length === 0
+                    visible: root.todayItems.length === 0
 
                     Text {
                         anchors.centerIn: parent
-                        text: "No transactions recorded"
+                        text: "Nothing recorded today — tap a category above"
                         color: Theme.textMuted
-                        font.pixelSize: Theme.fontBody
+                        font.pixelSize: Theme.fontSub
                     }
                 }
             }
         }
     }
 
-    function formatMonthHeader(m) {
-        if (!m) return "";
-        var parts = m.split("-");
-        if (parts.length < 2) return m;
-        var monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-        var idx = parseInt(parts[1], 10) - 1;
-        var name = (idx >= 0 && idx < 12) ? monthNames[idx] : parts[1];
-        return name + " " + parts[0];
-    }
-
-    function shiftMonth(dir) {
-        var parts = currentMonth.split("-");
-        var y = parseInt(parts[0], 10);
-        var m = parseInt(parts[1], 10) + dir;
-        if (m < 1) { m = 12; y--; }
-        if (m > 12) { m = 1; y++; }
-        currentMonth = y + "-" + (m < 10 ? "0" + m : m);
-        loadCalendar();
-        loadTransactions();
-    }
-
-    function loadCalendar() {
-        Api.get("/api/calendar?month=" + currentMonth, function(err, res) {
-            if (!err && res && res.days) {
-                calendarDays = res.days;
-            }
-        });
-    }
-
-    function loadTransactions() {
-        var q = "/api/tx?limit=60";
-        if (activeFilter === "Today") {
-            q += "&from=" + AppState.todayDay + "&to=" + AppState.todayDay;
-        } else if (activeFilter === "Month") {
-            var y = currentMonth.split("-")[0];
-            var m = currentMonth.split("-")[1];
-            q += "&from=" + currentMonth + "-01&to=" + currentMonth + "-31";
+    function categoriesOf(income) {
+        var out = []
+        for (var i = 0; i < AppState.categories.length; i++) {
+            var c = AppState.categories[i]
+            if (c.status === 0 && Boolean(c.isIncome) === income) out.push(c)
         }
-        Api.get(q, function(err, res) {
-            if (!err && res && res.items) {
-                transactions = res.items;
-            }
-        });
+        return out
     }
 
-    Component.onCompleted: {
-        loadCalendar();
-        loadTransactions();
+    function loadToday() {
+        Api.get("/api/overview?date=" + AppState.todayDay, function(err, res) {
+            if (err || !res) return
+            todayExpense = res.expenseMinor || 0
+            todayIncome = res.incomeMinor || 0
+            todayItems = res.items || []
+        })
     }
+
+    Component.onCompleted: loadToday()
 
     Connections {
         target: AppState
-        function onTxChanged() {
-            root.loadCalendar();
-            root.loadTransactions();
-        }
-        function onDataRefreshed() {
-            root.loadCalendar();
-            root.loadTransactions();
-        }
+        function onTxChanged() { root.loadToday() }
+        function onDataRefreshed() { root.loadToday() }
     }
 }

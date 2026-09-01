@@ -310,3 +310,44 @@ func (s *Store) Wallets() (*Wallets, error) {
 	}
 	return w, nil
 }
+
+// SummaryStats is the whole-database overview shown on the settings/statistics
+// screen: how much history exists, not what it sums to.
+type SummaryStats struct {
+	Transactions         int64  `json:"transactions"`
+	DaysWithTransactions int64  `json:"daysWithTransactions"`
+	FirstDay             string `json:"firstDay"`
+	LastDay              string `json:"lastDay"`
+	ExpenseCount         int64  `json:"expenseCount"`
+	IncomeCount          int64  `json:"incomeCount"`
+	TransferCount        int64  `json:"transferCount"`
+	Accounts             int64  `json:"accounts"`
+	Categories           int64  `json:"categories"`
+	Budgets              int64  `json:"budgets"`
+}
+
+// SummaryStats counts active rows across the whole database in one query.
+func (s *Store) SummaryStats() (*SummaryStats, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := &SummaryStats{}
+	err := s.db.QueryRow(`SELECT
+		COUNT(*),
+		COUNT(DISTINCT day),
+		COALESCE(MIN(day),''),
+		COALESCE(MAX(day),''),
+		COALESCE(SUM(CASE WHEN kind=0 THEN 1 ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN kind=2 THEN 1 ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN kind=1 THEN 1 ELSE 0 END),0),
+		(SELECT COUNT(*) FROM accounts   WHERE status=0),
+		(SELECT COUNT(*) FROM categories WHERE status=0),
+		(SELECT COUNT(*) FROM budgets    WHERE status=0)
+		FROM transactions WHERE status=0`).Scan(
+		&out.Transactions, &out.DaysWithTransactions, &out.FirstDay, &out.LastDay,
+		&out.ExpenseCount, &out.IncomeCount, &out.TransferCount,
+		&out.Accounts, &out.Categories, &out.Budgets)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}

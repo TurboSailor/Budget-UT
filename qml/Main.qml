@@ -4,6 +4,7 @@ import "theme"
 import "store"
 import "components"
 import "pages"
+import "js/api.js" as Api
 
 MainView {
     id: mainView
@@ -16,7 +17,9 @@ MainView {
     height: units.gu(75)
     backgroundColor: Theme.background
 
-    // Connection retry / banner
+    // Locked until the PIN is verified (when one is configured).
+    property bool locked: false
+
     Rectangle {
         id: errorBanner
         anchors.top: parent.top
@@ -35,7 +38,6 @@ MainView {
         }
     }
 
-    // Main content area
     Item {
         anchors.top: errorBanner.visible ? errorBanner.bottom : parent.top
         anchors.left: parent.left
@@ -46,7 +48,11 @@ MainView {
             anchors.fill: parent
             visible: AppState.activeTab === 0
             onEditTxRequested: editSheet.open(tx)
-            onSettingsRequested: AppState.activeTab = 5
+            onSettingsRequested: mainView.openSettings(0)
+            onStatsRequested: AppState.activeTab = 4
+            onQuickAddRequested: editSheet.openFor(category)
+            onCategoryEditRequested: mainView.openSettings(3)
+            onCategoryCreateRequested: mainView.openSettings(3)
         }
 
         CalendarPage {
@@ -71,32 +77,52 @@ MainView {
         }
 
         SettingsPage {
+            id: settingsPage
             anchors.fill: parent
             visible: AppState.activeTab === 5
         }
     }
 
-    // Bottom Navigation Bar
     BottomNav {
         id: bottomNav
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right
         currentTab: AppState.activeTab
-        onTabSelected: AppState.activeTab = index
+        onTabSelected: {
+            // Leaving Settings resets any open manager sub-screen.
+            if (AppState.activeTab === 5 && index !== 5) settingsPage.managerIndex = 0
+            AppState.activeTab = index
+        }
         onAddClicked: editSheet.open(null)
     }
 
-    // Modal Edit/Create Transaction Sheet
     EditTxSheet {
         id: editSheet
         anchors.fill: parent
         z: 100
     }
 
-    // Initial load + periodic poll
+    // PIN gate: covers everything, including the nav bar.
+    PinLock {
+        id: pinLock
+        anchors.fill: parent
+        z: 200
+        mode: "verify"
+        visible: mainView.locked
+        onUnlocked: mainView.locked = false
+    }
+
+    function openSettings(manager) {
+        settingsPage.managerIndex = manager
+        AppState.activeTab = 5
+    }
+
     Component.onCompleted: {
-        AppState.reload();
+        AppState.reload()
+        Api.get("/api/security", function(err, res) {
+            if (!err && res && res.pinEnabled) mainView.locked = true
+        })
     }
 
     Timer {
@@ -104,9 +130,7 @@ MainView {
         running: true
         repeat: true
         onTriggered: {
-            if (!AppState.connected) {
-                AppState.reload();
-            }
+            if (!AppState.connected) AppState.reload()
         }
     }
 }
